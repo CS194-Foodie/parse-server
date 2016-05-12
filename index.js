@@ -40,6 +40,14 @@ app.get('/', function(req, res) {
   res.status(200).send('Make sure to star the parse-server repo on GitHub!');
 });
 
+app.get('/yelp', function(req, res) {
+  yelp(req.query.term).then(function(data) {
+    res.send(data);
+  }, function(error) {
+    res.error(error);
+  });
+});
+
 // There will be a test page available on the /test path of your server url
 // Remove this before launching your app
 app.get('/test', function(req, res) {
