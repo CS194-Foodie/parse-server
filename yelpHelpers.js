@@ -6,9 +6,10 @@ var yelp = new Yelp({
 	token_secret: process.env.YELP_TOKEN_SECRET
 });
 
-function testFunc() {
-	yelp.search({ term: "food", location: "Palo Alto" }).then(function(data) {
-		console.log(data);
+// This returns a promise
+function testFunc(term) {
+	return yelp.search({ term: term, location: "Palo Alto" }).then(function(data) {
+		return data;
 	});
 }
 
