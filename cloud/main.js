@@ -18,10 +18,24 @@ Parse.Cloud.define('matchUser', function(req, res) {
 	});
 });
 
+// Assumes that user id provided is in the pending portion
+// 	of the event's pendingUsers (i.e. an array of user id's) field
+Parse.Cloud.define('userRSVP', function(req, res) {
+	var userId = req.params.userId;
+	var eventId = req.params.eventId;
+	var canGo = req.params.canGo;
+	var Event = Parse.Object.extend("Event");
+	var query = new Parse.Query(Event);
+	query.get(eventId).then(function(event) {
+		event.addUnique("unavailableUsers", userId);
+		event.remove("pendingUsers", userId);
+		event.save(); // need to call after modifying any field of a Javascript object 
+		res.success(); // & every time you use an array specific modifier, you have to call it again
+	}, function(error) {
+		res.error(error);
+	});
 
-
-
-
+});
 
 
 /* SAMPLE CODE */
