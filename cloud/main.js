@@ -12,5 +12,7 @@ Parse.Cloud.define('eventQuery', function(req, res) {
 	query.equalTo("restaurantName", restuarantName);
 	query.first().then(function(response) {
 		res.success(response);
+	}, function(error) {
+		res.error(error);
 	});
 });
