@@ -3,6 +3,29 @@ Parse.Cloud.define('hello', function(req, res) {
   res.success('Hi');
 });
 
+// Client will be notified when event with given id is changed
+// 	userId is user to be matched
+// 	eventId is event to fill for the user
+Parse.Cloud.define('matchUser', function(req, res) {
+	var userId = req.params.userId;
+	var eventId = req.params.eventId;
+	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
+	var query = new Parse.Query(Event); // makes a new query over Events
+	query.get(eventId).then(function(event) {
+		res.success(event.get("restaurantName"));
+	}, function(error) {
+		res.error(error);
+	});
+});
+
+
+
+
+
+
+
+/* SAMPLE CODE */
+
 
 // Send a restaurant name, we will return all matching restaurants
 Parse.Cloud.define('yelpFun', function(req, res) {
