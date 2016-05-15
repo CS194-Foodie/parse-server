@@ -1,7 +1,10 @@
+// Important flags to keep in mind:
+//  - CHECK WITH CATHERINE = for Catherine to verify as `ok`
+//  - CHECK WITH JOHN = for John to verify as `ok`
+//  - CHECK WITH NICK = for Nick to verify as `ok`
+//  - TODO = for anyone to look at and see if they can start/tackle
+//      the issue at hand.
 
-Parse.Cloud.define('hello', function(req, res) {
-  res.success('Hi');
-});
 
 // Client will be notified when event with given id is changed
 // 	userId is user to be matched
@@ -14,6 +17,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
     var numGuests = req.params.guests; 
 	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
 	var query = new Parse.Query(Event); // makes a new query over Events
+    // matchUser STUB; TO REMOVE!!!
 	query.get(eventId).then(function(event) {
 		res.success(event.get("restaurantName"));
 	}, function(error) {
@@ -44,19 +48,33 @@ Parse.Cloud.define('matchUser', function(req, res) {
         // recursively creates a promise chain
         return usersForCuisines(user, 0);
     }).then(function(data) { // consume promise chain and obtain the query data
+        // TODO: The initial search returned NO MATCHES... in this case what should be done?
+        //  Fill in the event as a no go? CHECK WITH NICK
         if (!_.isEmpty(data)) { // CHECK WITH NICK
             var users = data.users;
             var cuisine = data.cuisine;
+            // We can leverage this in order to NOT double search (i.e. 
+            //  Let's pass index instead of zero into our query function 
+            //  usersForCuisines, which means we want to start our query a
+            //  certain number of cuisines in so as to not do double work).
+            //  We should also check if index >= 'cuisines' array length
+            var index = data.index; 
         }
     });
 
     // TODO LIST: 
-    // - We need to notify the user that they've been invited
+    // 1) We need to notify the user that they've been invited // CHECK WITH NICK
     //      - the user will then RSVP
-    // - We need to expand our search to look beyond just finding the first match
+    // 2) We need to expand our search to look beyond just finding the first match
     //      - If all the people who like Chinese food can't go, we need to now
     //          query for people with Vietnamese food as their preference, etc.
-    // - We need to populate our eventId once everything is found
+    // 3) Yelp Related Search:
+    //      - TODO: DISCRETIZE OUR BUDGET LIMITS (i.e. like Yelp: $ -> $$ -> $$$ -> $$$$) 
+    //      - We need to find a restaurant within our attendees' given max distance travel radius
+    //      - Attendees' budget limits are respected (i.e. they aren't paying through the nose)
+    //      - If number of potential attendees drops below numGuests, restart the search (i.e. step 2)
+    // 4) If there are multiple people that fit the ticket, randomize the results
+    // infty) FINAL STEP: We need to populate our eventId once everything is found
 });
 
 // Returns a PROMISE that contains the results of our query
@@ -84,17 +102,19 @@ function usersForCuisines(user, index) { // TODO: Rename this function because t
     return query.containedIn(cuisine, "cuisines").find().then(function(results) {
         if (results.length >= numOtherUsers) return { // base case
             "users": results,
-            "cuisine": cuisine
+            "cuisine": cuisine,
+            "index": index // Remember where our search stops
         };
         // TODO: We need to make sure we stop if index exceeds the length
         //  of our `user.get('cuisines')` array. CHECK BELOW CODE WITH NICK
         if (index + 1 == user.get('cuisines').length) return {}; // second base case
-        return usersForCuisine(user, index + 1); // recursive case
+        return usersForCuisines(user, index + 1); // recursive case
     });
 }
 
-// Assumes that user id provided is in the pending portion
-// 	of the event's pendingUsers (i.e. an array of user id's) field
+// Assumes that user id provided is in the pending portion of the
+// 	event's pendingUsers (i.e. an array of user id's) field (i.e.
+//  will not remove user from any other Event field, just pendingUsers)
 Parse.Cloud.define('userRSVP', function(req, res) {
 	var userId = req.params.userId;
 	var eventId = req.params.eventId;
@@ -102,7 +122,8 @@ Parse.Cloud.define('userRSVP', function(req, res) {
 	var Event = Parse.Object.extend("Event");
 	var query = new Parse.Query(Event);
 	query.get(eventId).then(function(event) {
-		event.addUnique("unavailableUsers", userId);
+        if (canGo) event.addUnique("goingUsers", userId);
+		else event.addUnique("unavailableUsers", userId);
 		event.remove("pendingUsers", userId);
 		event.save(); // need to call after modifying any field of a Javascript object 
 		res.success(); // & every time you use an array specific modifier, you have to call it again
@@ -114,6 +135,11 @@ Parse.Cloud.define('userRSVP', function(req, res) {
 
 
 /* SAMPLE CODE */
+
+// `Hello, World!` equivalent lol...
+Parse.Cloud.define('hello', function(req, res) {
+  res.success('Hi');
+});
 
 
 // Send a restaurant name, we will return all matching restaurants
