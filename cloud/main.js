@@ -44,8 +44,10 @@ Parse.Cloud.define('matchUser', function(req, res) {
         // recursively creates a promise chain
         return usersForCuisines(user, 0);
     }).then(function(data) { // consume promise chain and obtain the query data
-        var users = data.users;
-        var cuisine = data.cuisine;
+        if (!_.isEmpty(data)) { // CHECK WITH NICK
+            var users = data.users;
+            var cuisine = data.cuisine;
+        }
     });
 
     // TODO LIST: 
@@ -85,7 +87,8 @@ function usersForCuisines(user, index) { // TODO: Rename this function because t
             "cuisine": cuisine
         };
         // TODO: We need to make sure we stop if index exceeds the length
-        //  of our `user.get('cuisines')` array.
+        //  of our `user.get('cuisines')` array. CHECK BELOW CODE WITH NICK
+        if (index + 1 == user.get('cuisines').length) return {}; // second base case
         return usersForCuisine(user, index + 1); // recursive case
     });
 }
