@@ -6,10 +6,12 @@ Parse.Cloud.define('hello', function(req, res) {
 // Client will be notified when event with given id is changed
 // 	userId is user to be matched
 // 	eventId is event to fill for the user
+//  numGuests is the number of guests the guest creator wants to go with
 Parse.Cloud.define('matchUser', function(req, res) {
 	var userId = req.params.userId;
+    // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 	var eventId = req.params.eventId;
-    var numGuests = req.params.guests; // the number of guests the event creator wants to go with
+    var numGuests = req.params.guests; 
 	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
 	var query = new Parse.Query(Event); // makes a new query over Events
 	query.get(eventId).then(function(event) {
@@ -20,12 +22,13 @@ Parse.Cloud.define('matchUser', function(req, res) {
     // Query for users based on their restaurant preferences, 
     //  within the distance specified, with at least one
     //  shared conversation interest
-    // User: Chinese, Vietnamese, Japanese
-    // George: Chinese, American, Italian // find
-    // Clooney: Chinese // find
-    // Jack: Chinese, Greek // find
+    // EVENT CREATOR: Chinese, Vietnamese, Japanese
+    // George: Chinese, American, Italian // FIND
+    // Clooney: Chinese // FIND
+    // Jack: Chinese, Greek // FIND
     // Jill: Japanese
     // Jane: Vietnamese, Korean
+    // ...
 
     // Available Query Methods: 
     // - containedIn
@@ -35,28 +38,55 @@ Parse.Cloud.define('matchUser', function(req, res) {
 
     // Get current user
     var userQuery = new Parse.Query(Parse.User);
+    // Query for other users that match the event 
+    //  creator's cuisine preference list
     query.get(userId).then(function(user) {
+        // recursively creates a promise chain
         return usersForCuisines(user, 0);
-    }).then(function(data) {
+    }).then(function(data) { // consume promise chain and obtain the query data
         var users = data.users;
         var cuisine = data.cuisine;
     });
+
+    // TODO LIST: 
+    // - We need to notify the user that they've been invited
+    //      - the user will then RSVP
+    // - We need to expand our search to look beyond just finding the first match
+    //      - If all the people who like Chinese food can't go, we need to now
+    //          query for people with Vietnamese food as their preference, etc.
+    // - We need to populate our eventId once everything is found
 });
 
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
-function usersForCuisines(user, index) {
+function usersForCuisines(user, index) { // TODO: Rename this function because this function is a "mega query" for user groups
+    // get the current cuisine type we want to match against other users
     var cuisine = user.get('cuisines')[index];
     var query = new Parse.Query(Parse.User);
-    //query.near('userLocation', user.get('userLocation'));
-    query.withinMiles('userLocation', user.get('userLocation'), user.get('maxTravelDistance'));
-    query.containedIn('conversationPreferences', user.get('conversationPreferences'));
+    // Check if the users in our database are within the max
+    //  travel radius the event creator is willing to travel
+    query.withinMiles('userLocation', user.get('userLocation'), 
+        user.get('maxTravelDistance'));
+    // Check if the users within our database share any conversation
+    //  preferences with the event creator (OR kind of logic)
+    //  E.G.: CONTINUING THE EXAMPLE ABOVE
+    //      CREATOR: Chess, Water polo, Bongo drums
+    //      George: Water polo, polo, Ralph Lauren // FIND
+    //      Clooney: Coding, Chess // FIND
+    //      Jack: Bunnies, Jackrabbits, Jackelopes
+    //      Jill: Bongo drums
+    //      Jane: Chess, Bunnies
+    //      ...
+    query.containedIn('conversationPreferences', 
+        user.get('conversationPreferences'));
     return query.containedIn(cuisine, "cuisines").find().then(function(results) {
-        if (results.length >= numOtherUsers) return {
+        if (results.length >= numOtherUsers) return { // base case
             "users": results,
             "cuisine": cuisine
         };
-        return usersForCuisine(user, index + 1);
+        // TODO: We need to make sure we stop if index exceeds the length
+        //  of our `user.get('cuisines')` array.
+        return usersForCuisine(user, index + 1); // recursive case
     });
 }
 
