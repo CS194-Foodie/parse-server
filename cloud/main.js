@@ -9,6 +9,7 @@ Parse.Cloud.define('hello', function(req, res) {
 Parse.Cloud.define('matchUser', function(req, res) {
 	var userId = req.params.userId;
 	var eventId = req.params.eventId;
+    var numGuests = req.params.guests; // the number of guests the event creator wants to go with
 	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
 	var query = new Parse.Query(Event); // makes a new query over Events
 	query.get(eventId).then(function(event) {
@@ -16,7 +17,48 @@ Parse.Cloud.define('matchUser', function(req, res) {
 	}, function(error) {
 		res.error(error);
 	});
+    // Query for users based on their restaurant preferences, 
+    //  within the distance specified, with at least one
+    //  shared conversation interest
+    // User: Chinese, Vietnamese, Japanese
+    // George: Chinese, American, Italian // find
+    // Clooney: Chinese // find
+    // Jack: Chinese, Greek // find
+    // Jill: Japanese
+    // Jane: Vietnamese, Korean
+
+    // Available Query Methods: 
+    // - containedIn
+    // - contains
+    // - containsAll
+    // - equalTo
+
+    // Get current user
+    var userQuery = new Parse.Query(Parse.User);
+    query.get(userId).then(function(user) {
+        return usersForCuisines(user, 0);
+    }).then(function(data) {
+        var users = data.users;
+        var cuisine = data.cuisine;
+    });
 });
+
+// Returns a PROMISE that contains the results of our query
+//  This promise will then be consumed in the above query.get(...)...
+function usersForCuisines(user, index) {
+    var cuisine = user.get('cuisines')[index];
+    var query = new Parse.Query(Parse.User);
+    //query.near('userLocation', user.get('userLocation'));
+    query.withinMiles('userLocation', user.get('userLocation'), user.get('maxTravelDistance'));
+    query.containedIn('conversationPreferences', user.get('conversationPreferences'));
+    return query.containedIn(cuisine, "cuisines").find().then(function(results) {
+        if (results.length >= numOtherUsers) return {
+            "users": results,
+            "cuisine": cuisine
+        };
+        return usersForCuisine(user, index + 1);
+    });
+}
 
 // Assumes that user id provided is in the pending portion
 // 	of the event's pendingUsers (i.e. an array of user id's) field
