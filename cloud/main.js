@@ -147,11 +147,23 @@ Parse.Cloud.define('hello', function(req, res) {
 });
 
 
+/* Returns the string containing the url of the server we are currently running on
+ * (could be prod, staging, local, etc.).  Use this instead of hardcoding a URL
+ * when making a request to avoid hitting the wrong server.
+ *
+ * For example, when running locally this returns http://localhost:1337 (default port)
+ */
+function getServerURL() {
+    // Parse.serverURL has the /parse at the end, which we need to remove
+    return Parse.serverURL.replace("/parse", "");
+}
+
+
 // Send a restaurant name, we will return all matching restaurants
 Parse.Cloud.define('yelpFun', function(req, res) {
 	Parse.Cloud.httpRequest({
 		method: 'GET',
-		url: "http://localhost:1337/yelp?term=" + req.params.term, // url of whatever server we are running on
+		url: getServerURL() + "/yelp?term=" + req.params.term, // url of whatever server we are running on
 	}).then(function(httpResponse) {
 		res.success(httpResponse.text);
 	}, function(httpResponse) {

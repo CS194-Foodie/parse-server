@@ -16,9 +16,13 @@
     "yelp": "^1.0.1"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "nodemon index.js"
   },
   "engines": {
     "node": ">=4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^1.9.2"
   }
 }
