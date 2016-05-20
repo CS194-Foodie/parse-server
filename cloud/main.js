@@ -127,8 +127,11 @@ Parse.Cloud.define('userRSVP', function(req, res) {
 	var Event = Parse.Object.extend("Event");
 	var query = new Parse.Query(Event);
 	query.get(eventId).then(function(event) {
-        if (canGo) event.addUnique("goingUsers", userId);
-		else event.addUnique("unavailableUsers", userId);
+    if (canGo) {
+      event.addUnique("goingUsers", userId);
+    }	else {
+      event.addUnique("unavailableUsers", userId);
+    }
 		event.remove("pendingUsers", userId);
 		event.save(); // need to call after modifying any field of a Javascript object
 		res.success(); // & every time you use an array specific modifier, you have to call it again
