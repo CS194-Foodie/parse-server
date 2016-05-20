@@ -14,7 +14,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
 	var userId = req.params.userId;
     // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 	var eventId = req.params.eventId;
-    var numGuests = req.params.guests; 
+  var numFriends = req.params.guests;
 	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
 	var query = new Parse.Query(Event); // makes a new query over Events
     // matchUser STUB; TO REMOVE!!!
@@ -23,7 +23,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
 	}, function(error) {
 		res.error(error);
 	});
-    // Query for users based on their restaurant preferences, 
+    // Query for users based on their restaurant preferences,
     //  within the distance specified, with at least one
     //  shared conversation interest
     // EVENT CREATOR: Chinese, Vietnamese, Japanese
@@ -34,7 +34,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
     // Jane: Vietnamese, Korean
     // ...
 
-    // Available Query Methods: 
+    // Available Query Methods:
     // - containedIn
     // - contains
     // - containsAll
@@ -42,34 +42,36 @@ Parse.Cloud.define('matchUser', function(req, res) {
 
     // Get current user
     var userQuery = new Parse.Query(Parse.User);
-    // Query for other users that match the event 
+    // Query for other users that match the event
     //  creator's cuisine preference list
-    query.get(userId).then(function(user) {
+    userQuery.get(userId).then(function(currUser) {
         // recursively creates a promise chain
-        return usersForCuisines(user, 0);
+        // TODO: We need to fix this '0' index. For loop?
+        return usersForCuisines(currUser, numGuests, 0);
     }).then(function(data) { // consume promise chain and obtain the query data
         // TODO: The initial search returned NO MATCHES... in this case what should be done?
         //  Fill in the event as a no go? CHECK WITH NICK
         if (!_.isEmpty(data)) { // CHECK WITH NICK
             var users = data.users;
             var cuisine = data.cuisine;
-            // We can leverage this in order to NOT double search (i.e. 
-            //  Let's pass index instead of zero into our query function 
+            // TODO: What does this comment mean?
+            // We can leverage this in order to NOT double search (i.e.
+            //  Let's pass index instead of zero into our query function
             //  usersForCuisines, which means we want to start our query a
             //  certain number of cuisines in so as to not do double work).
             //  We should also check if index >= 'cuisines' array length
-            var index = data.index; 
+            var index = data.index;
         }
     });
 
-    // TODO LIST: 
+    // TODO LIST:
     // 1) We need to notify the user that they've been invited // CHECK WITH NICK
     //      - the user will then RSVP
     // 2) We need to expand our search to look beyond just finding the first match
     //      - If all the people who like Chinese food can't go, we need to now
     //          query for people with Vietnamese food as their preference, etc.
     // 3) Yelp Related Search:
-    //      - TODO: DISCRETIZE OUR BUDGET LIMITS (i.e. like Yelp: $ -> $$ -> $$$ -> $$$$) 
+    //      - TODO: DISCRETIZE OUR BUDGET LIMITS (i.e. like Yelp: $ -> $$ -> $$$ -> $$$$)
     //      - We need to find a restaurant within our attendees' given max distance travel radius
     //      - Attendees' budget limits are respected (i.e. they aren't paying through the nose)
     //      - If number of potential attendees drops below numGuests, restart the search (i.e. step 2)
@@ -79,14 +81,14 @@ Parse.Cloud.define('matchUser', function(req, res) {
 
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
-function usersForCuisines(user, index) { // TODO: Rename this function because this function is a "mega query" for user groups
+function usersForCuisines(currUser, numFriends, indexIntoCuisines) { // TODO: Rename this function because this function is a "mega query" for user groups
     // get the current cuisine type we want to match against other users
-    var cuisine = user.get('cuisines')[index];
-    var query = new Parse.Query(Parse.User);
+    var cuisine = currUser.get('cuisines')[indexIntoCuisines];
+    var friendsQuery = new Parse.Query(Parse.User);
     // Check if the users in our database are within the max
     //  travel radius the event creator is willing to travel
-    query.withinMiles('userLocation', user.get('userLocation'), 
-        user.get('maxTravelDistance'));
+    friendsQuery.withinMiles('userLocation', currUser.get('userLocation'),
+        currUser.get('maxTravelDistance'));
     // Check if the users within our database share any conversation
     //  preferences with the event creator (OR kind of logic)
     //  E.G.: CONTINUING THE EXAMPLE ABOVE
@@ -97,18 +99,21 @@ function usersForCuisines(user, index) { // TODO: Rename this function because t
     //      Jill: Bongo drums
     //      Jane: Chess, Bunnies
     //      ...
-    query.containedIn('conversationPreferences', 
-        user.get('conversationPreferences'));
-    return query.containedIn(cuisine, "cuisines").find().then(function(results) {
-        if (results.length >= numOtherUsers) return { // base case
+    friendsQuery.containedIn('conversationPreferences',
+        currUser.get('conversationPreferences'));
+
+    return friendsQuery.containedIn("cuisines", cuisine).find().then(function(results) {
+        // TODO: if 2 friends, should we priortize ==, but then back off to 1?
+        // TODO: define numOtherUsers
+        if (results.length >= numFriends) return { // base case
             "users": results,
             "cuisine": cuisine,
             "index": index // Remember where our search stops
         };
         // TODO: We need to make sure we stop if index exceeds the length
         //  of our `user.get('cuisines')` array. CHECK BELOW CODE WITH NICK
-        if (index + 1 == user.get('cuisines').length) return {}; // second base case
-        return usersForCuisines(user, index + 1); // recursive case
+        if (index + 1 == currUser.get('cuisines').length) return {}; // second base case
+        return usersForCuisines(currUser, indexIntoCuisines + 1); // recursive case
     });
 }
 
@@ -125,7 +130,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
         if (canGo) event.addUnique("goingUsers", userId);
 		else event.addUnique("unavailableUsers", userId);
 		event.remove("pendingUsers", userId);
-		event.save(); // need to call after modifying any field of a Javascript object 
+		event.save(); // need to call after modifying any field of a Javascript object
 		res.success(); // & every time you use an array specific modifier, you have to call it again
 	}, function(error) {
 		res.error(error);
