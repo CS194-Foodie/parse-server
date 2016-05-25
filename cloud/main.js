@@ -4,7 +4,7 @@
 //  - CHECK WITH NICK = for Nick to verify as `ok`
 //  - TODO = for anyone to look at and see if they can start/tackle
 //      the issue at hand.
-
+var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
 function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines) {
@@ -40,7 +40,10 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
           };
         }
         console.log('\t\t Recursing more ... ')
-        if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) return {}; // second base case
+        if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
+          console.log("\t\t Nothing found")
+          return {}; // second base case
+        }
         return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
     }, function(error) {
       console.log(error)
@@ -66,16 +69,6 @@ function inviteUsers(userIds, event, numFriends) {
   event.save();
 }
 
-function isEmpty(obj) {
-    for(var prop in obj) {
-        if(obj.hasOwnProperty(prop))
-            return false;
-    }
-
-    return true && JSON.stringify(obj) === JSON.stringify({});
-}
-
-
 // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 Parse.Cloud.define('matchUser', function(req, res) {
   var userId = req.params.userId;
@@ -99,7 +92,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
     // }
   }).then(function(match) { // consume promise chain and obtain the query data
     return eventQuery.get(eventId).then(function(event) {
-      if (!isEmpty(match)) {
+      if (!_.isEmpty(match)) {
           console.log('Match found!')
           var users = match.users;
           var cuisine = match.cuisine;
@@ -109,7 +102,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
           event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
           // CATHERINE CODE FOR FINDING RESTAURANT HERE:
 
-          // Add restaurant to event
+          // Add restaurant to event (Yelp Query)
 
           // JOHN ADDING IN CODE HERE:
 
@@ -118,6 +111,8 @@ Parse.Cloud.define('matchUser', function(req, res) {
           //  We now need to invite the users (should be conducted asynchronously)
 
           // inviteUsers(users, event, numFriends); // This should return a promise...
+
+
       } else {
         console.log('No match found');
         return event.destroy();
