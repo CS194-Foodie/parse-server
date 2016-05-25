@@ -40,13 +40,28 @@ function findFriendsAndRestaurant(currUser, numFriends, indexIntoCuisines) {
     // })
 }
 
+function inviteUsers(userIds, event, numFriends) {
+  // Add users to pending or invited
+  _.each(userIds, function(userId){
+    if (numFriends > 0) {
+      event.addUnique('invitedUsers', userId);
+      // Use the userId and the event to send a 
+      //  push notification to the invited user
+    } else {
+      event.addUnique('pendingUsers', userId);
+    }
+    numFriends = numFriends - 1;
+  });
+  event.save();
+}
+
 // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 Parse.Cloud.define('matchUser', function(req, res) {
-	var userId = req.params.userId;
-	var eventId = req.params.eventId;
+  var userId = req.params.userId;
+  var eventId = req.params.eventId;
   var numFriends = req.params.guests;
-	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
-	var eventQuery = new Parse.Query(Event); // makes a new query over Events
+  var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
+  var eventQuery = new Parse.Query(Event); // makes a new query over Events
 
   console.log('Matching user ' + userId + ' with ' + numFriends + ' friend.');
   // Get current user
@@ -70,7 +85,26 @@ Parse.Cloud.define('matchUser', function(req, res) {
           var users = data.users;
           var cuisine = data.cuisine;
           var index = data.index;
+
+          eventQuery.get(eventId).then(function(event) {
+            event.set('cuisineIndex', index); // keep track of our index
+            event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
+            // CATHERINE CODE FOR FINDING RESTAURANT HERE:
+
+            // Add restaurant to event 
+
+            // JOHN ADDING IN CODE HERE:
+
+            // At this point, we know that the users match according to distance,
+            //  food, and conversation preferences. We also have a restaurant.
+            //  We now need to invite the users (should be conducted asynchronously)
+            inviteUsers(users, event, numFriends); // This should return a promise...
+
+            res.success();
+          });
       }
+  }, function(error) {
+    res.error(error);
   });
 
   // TODO LIST:
@@ -103,39 +137,56 @@ Parse.Cloud.define('matchUser', function(req, res) {
 // }
 
 
-// Assumes that user id provided is in the pending portion of the
-// 	event's pendingUsers (i.e. an array of user id's) field (i.e.
-//  will not remove user from any other Event field, just pendingUsers)
+// Assumes that user id provided is in the invited portion of the
+//  event's invitedUsers (i.e. an array of user id's) field (i.e.
+//  will not remove user from any other Event field, just invitedUsers)
 Parse.Cloud.define('userRSVP', function(req, res) {
-	var userId = req.params.userId;
-	var eventId = req.params.eventId;
-	var canGo = req.params.canGo;
-	var Event = Parse.Object.extend("Event");
-	var query = new Parse.Query(Event);
-	query.get(eventId).then(function(event) {
+  var userId = req.params.userId;
+  var eventId = req.params.eventId;
+  var canGo = req.params.canGo;
+  var Event = Parse.Object.extend("Event");
+  var query = new Parse.Query(Event);
+  query.get(eventId).then(function(event) {
+    var numGuests = event.get('numGuests');
     if (canGo) {
       event.addUnique("goingUsers", userId);
-    }	else {
+    } else {
       event.addUnique("unavailableUsers", userId);
     }
-		event.remove("pendingUsers", userId);
-		event.save(); // need to call after modifying any field of a Javascript object
-		res.success(); // & every time you use an array specific modifier, you have to call it again
-	}, function(error) {
-		res.error(error);
-	});
+    event.remove("invitedUsers", userId);
+    // Check if the list of pending users is below 
+    //  the number of users that we want for the event
+    if (event.get('goingUsers').length == numGuests) {
+      // Signal that we're done and the event is good to go
+      event.set('isComplete', true);
+      event.save();
+      res.success();
+    } else if (event.get('pendingUsers').length < numGuests) {
+      // REQUERY! need to clear out the old information in 
+      //  our event's arrays
+      res.success();
+    }
+    // Send invite to the next pending user
+    var nextInvitee = _.first(event.get('pendingUsers'));
+    event.remove('pendingUsers', nextInvitee);
+    event.addUnique('invitedUsers', nextInvitee);
+    event.save(); // need to call after modifying any field of a Javascript object
+    res.success(); // & every time you use an array specific modifier, you have to call it again
+  }, function(error) {
+    res.error(error);
+  });
 });
 
 // Send a restaurant name, we will return all matching restaurants
 Parse.Cloud.define('yelpFun', function(req, res) {
-	Parse.Cloud.httpRequest({
-		method: 'GET',
-		url: getServerURL() + "/yelp?term=" + req.params.term, // url of whatever server we are running on
-	}).then(function(httpResponse) {
-		res.success(httpResponse.text);
-	}, function(httpResponse) {
-		res.error("An error occurred: " + httpResponse.status);
-	});
+  Parse.Cloud.httpRequest({
+    method: 'GET',
+    url: getServerURL() + "/yelp?term=" + req.params.term, // url of whatever server we are running on
+  }).then(function(httpResponse) {
+    res.success(httpResponse.text);
+  }, function(httpResponse) {
+    res.error("An error occurred: " + httpResponse.status);
+  });
 });
 
 // matchUser STUB; TO REMOVE!!!
@@ -167,26 +218,26 @@ function getServerURL() {
 
 // Send a restaurant name, we will return all matching restaurants
 Parse.Cloud.define('eventQuery', function(req, res) {
-	var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
-	var query = new Parse.Query(Event); // makes a new query over Events
+  var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
+  var query = new Parse.Query(Event); // makes a new query over Events
 
-	var cuisine = req.params.cuisine; // Get parameters passed to this cloud function
+  var cuisine = req.params.cuisine; // Get parameters passed to this cloud function
 
-	// Specify any constraints on the query
-	query.equalTo("cuisine", cuisine);
+  // Specify any constraints on the query
+  query.equalTo("cuisine", cuisine);
 
-	// Run the query using promises (query.find for all, query.first for one)
-	query.find().then(function(response) {
-		console.log(response);
-		var newQuery = new Parse.Query(Event);
-		return newQuery.find();
+  // Run the query using promises (query.find for all, query.first for one)
+  query.find().then(function(response) {
+    console.log(response);
+    var newQuery = new Parse.Query(Event);
+    return newQuery.find();
 
-	}).then(function(response) {
+  }).then(function(response) {
 
-		console.log(response);
-		res.success(true);
+    console.log(response);
+    res.success(true);
 
-	}, function(error) {
-		res.error(error);
-	});
+  }, function(error) {
+    res.error(error);
+  });
 });
