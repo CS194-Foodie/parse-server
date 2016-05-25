@@ -20,7 +20,7 @@ function findFriendsAndRestaurant(currUser, numFriends, indexIntoCuisines) {
     // friendsQuery.containedIn('conversationPreferences',
     //     currUser.get('conversationPreferences'));
     return friendsQuery.containedIn("foodPreferences", [cuisine]).find().then(function(friendsFound) {
-        console.log("banana")
+        console.log("\t Recursive call #" + indexIntoCuisines)
         // // TODO: if 2 friends, should we priortize ==, but then back off to 1?
         // // TODO: define numOtherUsers
         if (friendsFound.length >= numFriends) {
@@ -31,11 +31,11 @@ function findFriendsAndRestaurant(currUser, numFriends, indexIntoCuisines) {
               "index": indexIntoCuisines // Remember where our search stops
           };
         }
-        console.log('beees')
+        console.log('Recursing more ... ')
         if (index + 1 == currUser.get('foodPreferences').length) return {}; // second base case
         return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
     }).then(function(eventParty) {
-      console.log('ZING')
+      console.log('Catching promise in findFriendsAndRestaurant')
     }, function(error) {
       console.log(error)
     })
@@ -86,28 +86,29 @@ Parse.Cloud.define('matchUser', function(req, res) {
   }).then(function(match) { // consume promise chain and obtain the query data
       // TODO: The initial search returned NO MATCHES... in this case what should be done?
       //  Fill in the event as a no go? CHECK WITH NICK
-      if (!_.isEmpty(match)) { // CHECK WITH NICK
-          var users = data.users;
-          var cuisine = data.cuisine;
-          var index = data.index;
-
-          eventQuery.get(eventId).then(function(event) {
-            event.set('cuisineIndex', index); // keep track of our index
-            event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
-            // CATHERINE CODE FOR FINDING RESTAURANT HERE:
-
-            // Add restaurant to event
-
-            // JOHN ADDING IN CODE HERE:
-
-            // At this point, we know that the users match according to distance,
-            //  food, and conversation preferences. We also have a restaurant.
-            //  We now need to invite the users (should be conducted asynchronously)
-            inviteUsers(users, event, numFriends); // This should return a promise...
-
-            res.success();
-          });
-      }
+      // if (!_.isEmpty(match)) { // CHECK WITH NICK
+      //     var users = data.users;
+      //     var cuisine = data.cuisine;
+      //     var index = data.index;
+      //
+      //     eventQuery.get(eventId).then(function(event) {
+      //       event.set('cuisineIndex', index); // keep track of our index
+      //       event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
+      //       // CATHERINE CODE FOR FINDING RESTAURANT HERE:
+      //
+      //       // Add restaurant to event
+      //
+      //       // JOHN ADDING IN CODE HERE:
+      //
+      //       // At this point, we know that the users match according to distance,
+      //       //  food, and conversation preferences. We also have a restaurant.
+      //       //  We now need to invite the users (should be conducted asynchronously)
+      //       inviteUsers(users, event, numFriends); // This should return a promise...
+      //
+      //       res.success();
+      //     });
+      // }
+      res.success();
   }, function(error) {
     res.error(error);
   });
