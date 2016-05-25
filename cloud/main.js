@@ -7,35 +7,41 @@
 
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
-function findFriendsAndRestaurant(currUser, numFriends, indexIntoCuisines) {
-    console.log("Finding friends and restaurant2 ...")
+function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines) {
+    console.log("\t Finding friends and restaurant ...")
+
+    var friendsQuery = new Parse.Query(Parse.User);
+
+    // Exclude the currentUser from the search
+    friendsQuery.notEqualTo('objectId', currUser.id)
+
     // get the current cuisine type we want to match against other users
     var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
-    console.log('\t Food Pref: ' + cuisine)
-    var friendsQuery = new Parse.Query(Parse.User);
-    console.log('\t Location check? ')
+    console.log('\t\t  Food Pref: ' + cuisine)
+
+    console.log('\t\t  Location check? ')
     // friendsQuery.withinMiles('userLocation', currUser.get('userLocation'),
     //     currUser.get('maxTravelDistance'));
-    console.log('\t Convo Pref? ')
+    console.log('\t\t  Convo Pref? ')
     // friendsQuery.containedIn('conversationPreferences',
     //     currUser.get('conversationPreferences'));
-    return friendsQuery.containedIn("foodPreferences", [cuisine]).find().then(function(friendsFound) {
-        console.log("\t Recursive call #" + indexIntoCuisines)
-        // // TODO: if 2 friends, should we priortize ==, but then back off to 1?
-        // // TODO: define numOtherUsers
-        if (friendsFound.length >= numFriends) {
-          console.log("Found user :D")
+    friendsQuery.containedIn("foodPreferences", [cuisine])
+
+    return friendsQuery.find().then(function(friendsFound) {
+        cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
+        console.log("\t\t  Recursive call #" + indexIntoCuisines)
+        if (friendsFound.length >= numFriendsRequested) {
+          console.log("\t\t Found user :D")
+          console.log(friendsFound)
           return { // base case
               "users": friendsFound,
               "cuisine": cuisine,
               "index": indexIntoCuisines // Remember where our search stops
           };
         }
-        console.log('Recursing more ... ')
-        if (index + 1 == currUser.get('foodPreferences').length) return {}; // second base case
+        console.log('\t\t Recursing more ... ')
+        if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) return {}; // second base case
         return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
-    }).then(function(eventParty) {
-      console.log('Catching promise in findFriendsAndRestaurant')
     }, function(error) {
       console.log(error)
     })
@@ -60,19 +66,27 @@ function inviteUsers(userIds, event, numFriends) {
   event.save();
 }
 
+function isEmpty(obj) {
+    for(var prop in obj) {
+        if(obj.hasOwnProperty(prop))
+            return false;
+    }
+
+    return true && JSON.stringify(obj) === JSON.stringify({});
+}
+
+
 // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 Parse.Cloud.define('matchUser', function(req, res) {
   var userId = req.params.userId;
   var eventId = req.params.eventId;
   var numFriends = req.params.guests;
-  var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
-  var eventQuery = new Parse.Query(Event); // makes a new query over Events
+  var eventQuery = new Parse.Query(Parse.Object.extend("Event")); // makes a new query over Events
 
   console.log('Matching user ' + userId + ' with ' + numFriends + ' friend.');
   // Get current user
   var userQuery = new Parse.Query(Parse.User);
-  // Query for other users that match the event
-  //  creator's cuisine preference list
+  // Query for users that match the event creator's cuisine preference list
   userQuery.get(userId).then(function(currUser) {
     console.log('\t Curr user found ' + currUser)
     // TODO: We need to fix this '0' index. For loop?
@@ -84,31 +98,34 @@ Parse.Cloud.define('matchUser', function(req, res) {
     //   event.save();
     // }
   }).then(function(match) { // consume promise chain and obtain the query data
-      // TODO: The initial search returned NO MATCHES... in this case what should be done?
-      //  Fill in the event as a no go? CHECK WITH NICK
-      // if (!_.isEmpty(match)) { // CHECK WITH NICK
-      //     var users = data.users;
-      //     var cuisine = data.cuisine;
-      //     var index = data.index;
-      //
-      //     eventQuery.get(eventId).then(function(event) {
-      //       event.set('cuisineIndex', index); // keep track of our index
-      //       event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
-      //       // CATHERINE CODE FOR FINDING RESTAURANT HERE:
-      //
-      //       // Add restaurant to event
-      //
-      //       // JOHN ADDING IN CODE HERE:
-      //
-      //       // At this point, we know that the users match according to distance,
-      //       //  food, and conversation preferences. We also have a restaurant.
-      //       //  We now need to invite the users (should be conducted asynchronously)
-      //       inviteUsers(users, event, numFriends); // This should return a promise...
-      //
-      //       res.success();
-      //     });
-      // }
-      res.success();
+    return eventQuery.get(eventId).then(function(event) {
+      if (!isEmpty(match)) {
+          console.log('Match found!')
+          var users = match.users;
+          var cuisine = match.cuisine;
+          var index = match.index;
+
+          event.set('cuisineIndex', index); // keep track of our index
+          event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
+          // CATHERINE CODE FOR FINDING RESTAURANT HERE:
+
+          // Add restaurant to event
+
+          // JOHN ADDING IN CODE HERE:
+
+          // At this point, we know that the users match according to distance,
+          //  food, and conversation preferences. We also have a restaurant.
+          //  We now need to invite the users (should be conducted asynchronously)
+
+          // inviteUsers(users, event, numFriends); // This should return a promise...
+      } else {
+        console.log('No match found');
+        return event.destroy();
+      }
+    });
+  }).then(function() {
+    console.log('Finished matching user')
+    res.success();
   }, function(error) {
     res.error(error);
   });
