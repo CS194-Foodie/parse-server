@@ -19,20 +19,25 @@ function findFriendsAndRestaurant(currUser, numFriends, indexIntoCuisines) {
     console.log('\t Convo Pref? ')
     // friendsQuery.containedIn('conversationPreferences',
     //     currUser.get('conversationPreferences'));
-    return friendsQuery.containedIn("foodPreferences", cuisine).find().then(function(friendsFound) {
-        console.log('banana')
-        return 5;
+    return friendsQuery.containedIn("foodPreferences", [cuisine]).find().then(function(friendsFound) {
+        console.log("banana")
         // // TODO: if 2 friends, should we priortize ==, but then back off to 1?
         // // TODO: define numOtherUsers
-        // console.log(friendsFound)
-        //
-        // if (results.length >= numFriends) return { // base case
-        //     "users": friendsFound,
-        //     "cuisine": cuisine,
-        //     "index": index // Remember where our search stops
-        // };
-        // if (index + 1 == currUser.get('foodPreferences').length) return {}; // second base case
-        // return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
+        if (friendsFound.length >= numFriends) {
+          console.log("Found user :D")
+          return { // base case
+              "users": friendsFound,
+              "cuisine": cuisine,
+              "index": indexIntoCuisines // Remember where our search stops
+          };
+        }
+        console.log('beees')
+        if (index + 1 == currUser.get('foodPreferences').length) return {}; // second base case
+        return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
+    }).then(function(eventParty) {
+      console.log('ZING')
+    }, function(error) {
+      console.log(error)
     })
     // .then(function(eventParty) {
     //   // TODO: Assume a restaurant is always found. If not, we do more recursion
@@ -66,12 +71,19 @@ Parse.Cloud.define('matchUser', function(req, res) {
   }).then(function(match) { // consume promise chain and obtain the query data
       // TODO: The initial search returned NO MATCHES... in this case what should be done?
       //  Fill in the event as a no go? CHECK WITH NICK
-      if (!_.isEmpty(match)) { // CHECK WITH NICK
-          var users = data.users;
-          var cuisine = data.cuisine;
-          var index = data.index;
-      }
-  });
+      
+      // if (!_.isEmpty(match)) { // CHECK WITH NICK
+      //     var users = data.users;
+      //     var cuisine = data.cuisine;
+      //     var index = data.index;
+      //     console.log("NOOOOO")
+      // } else {
+      //   console.log("found")
+      // }
+      res.success();
+  }, function(error) {
+		res.error(error);
+	});
 
   // TODO LIST:
   // 1) We need to notify the user that they've been invited // CHECK WITH NICK
