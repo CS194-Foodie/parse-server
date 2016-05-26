@@ -51,6 +51,7 @@ app.get('/yelp', function(req, res) {
   }
   console.log(term);
   yelp(term).then(function(data) {
+    // console.log("DATA: " + data.businesses);
     res.send(data);
   }, function(error) {
     res.error(error);

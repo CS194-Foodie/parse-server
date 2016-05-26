@@ -50,6 +50,7 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
         console.log("The event party: ", eventParty, '\n')
         if (_.isEmpty(eventParty)) return {};
         return queryYelpForRestaurant(eventParty);
+
       }
       console.log('\t\t Recursing more ... ')
       if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
@@ -62,7 +63,21 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
   })
 }
 
-//https://api.yelp.com/v2/search?term=food&location=San+Francisco
+function extractRestaurantData(businesses) {
+  var result = [];
+  _.each(businesses, function(business) {
+    var data = {
+      "id" : business.id,
+      "name" : business.name,
+      "address" : business.location.address,
+      "link" : business.url,
+      "rating" : business.rating
+    };
+    result.push(data);
+  });
+  return result;
+}
+
 
 function queryYelpForRestaurant(eventParty) {
   return Parse.Cloud.httpRequest({
@@ -72,7 +87,9 @@ function queryYelpForRestaurant(eventParty) {
                               "&cll=" + eventParty.lat + "," + eventParty.long +// url of whatever server we are running on
                               "&location=" + eventParty.location
   }).then(function(httpResponse) {
-    console.log("hi");
+    // console.log(httpResponse.data.businesses);
+    var restaurantData = extractRestaurantData(httpResponse.data.businesses);
+    console.log(restaurantData);
     return httpResponse;
   });
 }
