@@ -34,7 +34,7 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
         //
         console.log("\t\t Found user :D")
         console.log(friendsFound)
-        return { // base case
+        var eventParty =  { // base case
             "users": friendsFound,
             "cuisine": cuisine,
             "dist": 40000,
@@ -46,6 +46,10 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
             // linkToRestaurant: ___
             "index": indexIntoCuisines // Remember where our search stops
         };
+        console.log("\n\nYelping ... ");
+        console.log("The event party: ", eventParty, '\n')
+        if (_.isEmpty(eventParty)) return {};
+        return queryYelpForRestaurant(eventParty);
       }
       console.log('\t\t Recursing more ... ')
       if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
@@ -53,10 +57,6 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
         return {}; // second base case
       }
       return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1); // recursive case
-  }).then(function(eventParty) {
-    // TODO: Assume a restaurant is always found. If not, we do more recursion
-    console.log("\n\nYelping ... ");
-    return queryYelpForRestaurant(eventParty);
   }, function(error) {
     console.log(error);
   })
@@ -72,7 +72,7 @@ function queryYelpForRestaurant(eventParty) {
                               "&cll=" + eventParty.lat + "," + eventParty.long +// url of whatever server we are running on
                               "&location=" + eventParty.location
   }).then(function(httpResponse) {
-    console.log(httpResponse);
+    console.log("hi");
     return httpResponse;
   });
 }
@@ -107,6 +107,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
     console.log('\t Curr user found ' + currUser)
     return findFriendsAndRestaurant(currUser, numFriends, 0);
   }).then(function(match) { // consume promise chain and obtain the query data
+    console.log("\t\t\tMATCH" + match);
     return eventQuery.get(eventId).then(function(event) {
       if (!_.isEmpty(match)) {
           console.log('Match found!')
@@ -134,6 +135,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
           //   event.addUnique("restraurantAddress", userId);
           //   event.save();
           // }
+          event.save();
 
       } else {
         console.log('No match found');

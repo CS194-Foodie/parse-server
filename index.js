@@ -46,7 +46,7 @@ app.get('/yelp', function(req, res) {
   var term = {
     "term" : req.query.category_filter,
     "radius_filter" : req.query.radius_filter,
-    "cll": req.query.cll,
+    "cll" : req.query.cll,
     "location" : req.query.location
   }
   console.log(term);
