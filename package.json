@@ -24,6 +24,7 @@
     "node": ">=4.3"
   },
   "devDependencies": {
+    "node-inspector": "^0.12.8",
     "nodemon": "^1.9.2"
   }
 }
