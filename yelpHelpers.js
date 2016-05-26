@@ -8,8 +8,11 @@ var yelp = new Yelp({
 
 // This returns a promise
 function testFunc(term) {
-	return yelp.search({ term: term, location: "Palo Alto" }).then(function(data) {
+	return yelp.search(term).then(function(data) {
+		console.log(data);
 		return data;
+	}, function(error) {
+		console.log(error);
 	});
 }
 

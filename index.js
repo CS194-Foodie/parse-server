@@ -41,7 +41,16 @@ app.get('/', function(req, res) {
 });
 
 app.get('/yelp', function(req, res) {
-  yelp(req.query.term).then(function(data) {
+  console.log("In endpoint")
+  console.log(req.query);
+  var term = {
+    "term" : req.query.category_filter,
+    "radius_filter" : req.query.radius_filter,
+    "cll": req.query.cll,
+    "location" : req.query.location
+  }
+  console.log(term);
+  yelp(term).then(function(data) {
     res.send(data);
   }, function(error) {
     res.error(error);
