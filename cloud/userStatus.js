@@ -1,7 +1,11 @@
 /* CLOUD FUNCTION: getUserStatus
  * --------------------------------
  * Request params:
+<<<<<<< HEAD
  * 		sessionToken - the session token for the user to return the status for
+=======
+ * 		userId - the user ID for the user to return the status for
+>>>>>>> staging
  *
  * Response format:
  *		"status" field - either "FREE", "ATTENDING", "ORGANIZING", or "WAITING"
@@ -14,14 +18,28 @@
  * containing info about this user.
  */
 Parse.Cloud.define("getUserStatus", function(req, res) {
+<<<<<<< HEAD
 	
 	// Sign in as the given user
 	Parse.User.become(req.params.sessionToken).then(function(user) {
+=======
+	Parse.Cloud.useMasterKey();
+
+	// Get the given user
+	var user = null;
+	var query = new Parse.Query(Parse.User);
+	query.equalTo("objectId", req.params.userId);
+	query.first().then(function(foundUser) {
+		user = foundUser;
+>>>>>>> staging
 
 		// First query for events created by this user
 		var ownEventQuery = new Parse.Query(Parse.Object.extend("Event"));
 		ownEventQuery.equalTo("creator", user);
+<<<<<<< HEAD
 		console.log("Event query 1");
+=======
+>>>>>>> staging
 		return ownEventQuery.first();
 	}).then(function(event) {
 
@@ -44,10 +62,16 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		} else {
 			
 			// Check if this user is attending any events
+<<<<<<< HEAD
 			console.log("Event query 2");
 			var attendingEventQuery = new Parse.Query(Parse.Object.extend("Event"));
 			attendingEventQuery.equalTo("isFinalized", true);
 			attendingEventQuery.equalTo("goingUsers", Parse.User.current());
+=======
+			var attendingEventQuery = new Parse.Query(Parse.Object.extend("Event"));
+			attendingEventQuery.equalTo("isFinalized", true);
+			attendingEventQuery.equalTo("goingUsers", user);
+>>>>>>> staging
 			return attendingEventQuery.first();
 		}
 
@@ -73,6 +97,12 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 });
 
 
+<<<<<<< HEAD
+=======
+
+
+/* FOR TESTING ONLY */
+>>>>>>> staging
 Parse.Cloud.define("update", function(req, res) {
 
 	// Sign in as the given user

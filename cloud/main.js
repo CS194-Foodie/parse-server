@@ -6,51 +6,94 @@ require('./userStatus.js');
 //  - CHECK WITH NICK = for Nick to verify as `ok`
 //  - TODO = for anyone to look at and see if they can start/tackle
 //      the issue at hand.
-
+var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
 function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines) {
-    console.log("\t Finding friends and restaurant ...")
+  console.log("\t Finding friends and restaurant ...")
 
-    var friendsQuery = new Parse.Query(Parse.User);
+  var friendsQuery = new Parse.Query(Parse.User);
 
-    // Exclude the currentUser from the search
-    friendsQuery.notEqualTo('objectId', currUser.id)
+  // Exclude the currentUser from the search
+  friendsQuery.notEqualTo('objectId', currUser.id)
 
-    // get the current cuisine type we want to match against other users
-    var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
-    console.log('\t\t  Food Pref: ' + cuisine)
+  // get the current cuisine type we want to match against other users
+  var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
+  console.log('\t\t  Food Pref: ' + cuisine)
 
-    console.log('\t\t  Location check? ')
-    // friendsQuery.withinMiles('userLocation', currUser.get('userLocation'),
-    //     currUser.get('maxTravelDistance'));
-    console.log('\t\t  Convo Pref? ')
-    // friendsQuery.containedIn('conversationPreferences',
-    //     currUser.get('conversationPreferences'));
-    friendsQuery.containedIn("foodPreferences", [cuisine])
+  console.log('\t\t  Location check? ')
+  // friendsQuery.withinMiles('userLocation', currUser.get('userLocation'),
+  //     currUser.get('maxTravelDistance') + MAX_TRAVEL_DISTANCE_MI);
+  console.log('\t\t  Convo Pref? ')
+  // friendsQuery.containedIn('conversationPreferences',
+  //     currUser.get('conversationPreferences'));
+  friendsQuery.containedIn("foodPreferences", [cuisine])
 
-    return friendsQuery.find().then(function(friendsFound) {
-        cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
-        console.log("\t\t  Recursive call #" + indexIntoCuisines)
-        if (friendsFound.length >= numFriendsRequested) {
-          console.log("\t\t Found user :D")
-          console.log(friendsFound)
-          return { // base case
-              "users": friendsFound,
-              "cuisine": cuisine,
-              "index": indexIntoCuisines // Remember where our search stops
-          };
-        }
-        console.log('\t\t Recursing more ... ')
-        if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) return {}; // second base case
-        return findFriendsAndRestaurant(currUser, indexIntoCuisines + 1); // recursive case
-    }, function(error) {
-      console.log(error)
-    })
-    // .then(function(eventParty) {
-    //   // TODO: Assume a restaurant is always found. If not, we do more recursion
-    //   return queryYelpForRestaurant(results)
-    // })
+  return friendsQuery.find().then(function(friendsFound) {
+      cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
+      console.log("\t\t  Recursive call #" + indexIntoCuisines)
+      if (friendsFound.length >= numFriendsRequested) {
+        //
+        console.log("\t\t Found user :D")
+        console.log(friendsFound)
+        var eventParty =  { // base case
+            "users": friendsFound,
+            "cuisine": cuisine,
+            "dist": 40000,
+            "location": currUser.get('userLocatingString'),
+            "lat": currUser.get('userLocation').latitude,
+            "long": currUser.get('userLocation').longitude,
+            // restuarant: ___
+            // restaurantAddress: ____
+            // linkToRestaurant: ___
+            "index": indexIntoCuisines // Remember where our search stops
+        };
+        console.log("\n\nYelping ... ");
+        console.log("The event party: ", eventParty, '\n')
+        if (_.isEmpty(eventParty)) return {};
+        return queryYelpForRestaurant(eventParty);
+
+      }
+      console.log('\t\t Recursing more ... ')
+      if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
+        console.log("\t\t Nothing found");
+        return {}; // second base case
+      }
+      return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1); // recursive case
+  }, function(error) {
+    console.log(error);
+  })
+}
+
+function extractRestaurantData(businesses) {
+  var result = [];
+  _.each(businesses, function(business) {
+    var data = {
+      "id" : business.id,
+      "name" : business.name,
+      "address" : business.location.address,
+      "link" : business.url,
+      "rating" : business.rating
+    };
+    result.push(data);
+  });
+  return result;
+}
+
+
+function queryYelpForRestaurant(eventParty) {
+  return Parse.Cloud.httpRequest({
+    method: 'GET',
+    url: getServerURL() + "/yelp?category_filter=" + eventParty.cuisine +
+                              "&radius_filter=" + eventParty.dist +
+                              "&cll=" + eventParty.lat + "," + eventParty.long +// url of whatever server we are running on
+                              "&location=" + eventParty.location
+  }).then(function(httpResponse) {
+    // console.log(httpResponse.data.businesses);
+    var restaurantData = extractRestaurantData(httpResponse.data.businesses);
+    console.log(restaurantData);
+    return httpResponse;
+  });
 }
 
 function inviteUsers(userIds, event, numFriends) {
@@ -68,16 +111,6 @@ function inviteUsers(userIds, event, numFriends) {
   event.save();
 }
 
-function isEmpty(obj) {
-    for(var prop in obj) {
-        if(obj.hasOwnProperty(prop))
-            return false;
-    }
-
-    return true && JSON.stringify(obj) === JSON.stringify({});
-}
-
-
 // eventId that is given to us by client; eventId is created BY CLIENT NOT US
 Parse.Cloud.define('matchUser', function(req, res) {
   var userId = req.params.userId;
@@ -91,17 +124,11 @@ Parse.Cloud.define('matchUser', function(req, res) {
   // Query for users that match the event creator's cuisine preference list
   userQuery.get(userId).then(function(currUser) {
     console.log('\t Curr user found ' + currUser)
-    // TODO: We need to fix this '0' index. For loop?
     return findFriendsAndRestaurant(currUser, numFriends, 0);
-    //  eventQuery.get(eventId).then(function(event) {
-    //   // Set restaurant
-    //   event.addUnique("restraurantName", userId);
-    //   event.addUnique("restraurantAddress", userId);
-    //   event.save();
-    // }
   }).then(function(match) { // consume promise chain and obtain the query data
+    console.log("\t\t\tMATCH" + match);
     return eventQuery.get(eventId).then(function(event) {
-      if (!isEmpty(match)) {
+      if (!_.isEmpty(match)) {
           console.log('Match found!')
           var users = match.users;
           var cuisine = match.cuisine;
@@ -111,7 +138,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
           event.addUnique("numGuests", numFriends); // Keep track of the number of guests within the event
           // CATHERINE CODE FOR FINDING RESTAURANT HERE:
 
-          // Add restaurant to event
+          // Add restaurant to event (Yelp Query)
 
           // JOHN ADDING IN CODE HERE:
 
@@ -120,6 +147,15 @@ Parse.Cloud.define('matchUser', function(req, res) {
           //  We now need to invite the users (should be conducted asynchronously)
 
           // inviteUsers(users, event, numFriends); // This should return a promise...
+
+          //  eventQuery.get(eventId).then(function(event) {
+          //   // Set restaurant
+          //   event.addUnique("restraurantName", userId);
+          //   event.addUnique("restraurantAddress", userId);
+          //   event.save();
+          // }
+          event.save();
+
       } else {
         console.log('No match found');
         return event.destroy();
@@ -191,7 +227,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
       //  our event's arrays
       res.success();
     }
-    // Send invite to the next pending user
+    // Send invite to the next pending user // CHECK WITH NICK
     var nextInvitee = _.first(event.get('pendingUsers'));
     event.remove('pendingUsers', nextInvitee);
     event.addUnique('invitedUsers', nextInvitee);

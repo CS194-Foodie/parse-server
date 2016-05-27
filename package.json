@@ -13,6 +13,7 @@
     "kerberos": "~0.0.x",
     "parse": "~1.8.0",
     "parse-server": "~2.2.2",
+    "underscore": "^1.8.3",
     "yelp": "^1.0.1"
   },
   "scripts": {
