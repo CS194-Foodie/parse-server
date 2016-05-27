@@ -1,7 +1,7 @@
 /* CLOUD FUNCTION: getUserStatus
  * --------------------------------
  * Request params:
- * 		userId - the user ID for the user to return the status for
+ * 		sessionToken - the session token for the user to return the status for
  *
  * Response format:
  *		"status" field - either "FREE", "ATTENDING", "ORGANIZING", or "WAITING"
@@ -14,14 +14,9 @@
  * containing info about this user.
  */
 Parse.Cloud.define("getUserStatus", function(req, res) {
-	Parse.Cloud.useMasterKey();
 
-	// Get the given user
-	var user = null;
-	var query = new Parse.Query(Parse.User);
-	query.equalTo("objectId", req.params.userId);
-	query.first().then(function(foundUser) {
-		user = foundUser;
+	// Log in as the given user
+	Parse.User.become(req.params.sessionToken).then(function(user) {
 
 		// First query for events created by this user
 		var ownEventQuery = new Parse.Query(Parse.Object.extend("Event"));
