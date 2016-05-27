@@ -1,3 +1,5 @@
+require('./userStatus.js');
+
 // Important flags to keep in mind:
 //  - CHECK WITH CATHERINE = for Catherine to verify as `ok`
 //  - CHECK WITH JOHN = for John to verify as `ok`
