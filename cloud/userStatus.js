@@ -71,6 +71,9 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 });
 
 
+
+
+/* FOR TESTING ONLY */
 Parse.Cloud.define("update", function(req, res) {
 
 	// Sign in as the given user
