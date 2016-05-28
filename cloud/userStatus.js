@@ -19,69 +19,54 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 	// Log in as the given user
 	Parse.User.become(req.params.sessionToken).then(function(user) {
 
-		// First query for events created by this user
-		var ownEventQuery = new Parse.Query(Parse.Object.extend("Event"));
-		ownEventQuery.equalTo("creator", user);
-		return ownEventQuery.first();
+		// Query for events that this user is a part of (either organizing,
+		// attending, or invited to)
+		var Event = Parse.Object.extend("Event");
+		var ownEventQuery = new Parse.Query(Event);
+		ownEventQuery.equalTo("creatorId", user.id);
+
+		var invitedEventQuery = new Parse.Query(Event);
+		invitedEventQuery.equalTo("invitedUsers", user.id);
+
+		var goingEventQuery = new Parse.Query(Event);
+		goingEventQuery.equalTo("goingUsers", user.id);
+
+		return Parse.Query.or(ownEventQuery, invitedEventQuery, 
+			goingEventQuery).first();
 	}).then(function(event) {
 
-		if (event != undefined && event.get("isFinalized")) {
-			
-			// If this user has created an event, and it is scheduled...
-			res.success({
-				"status": "ATTENDING",
-				"event": event
-			});
+		console.log("Found event - " + JSON.stringify(event));
 
-		} else if (event != undefined) {
+		var userId = Parse.User.current().id;
 
-			// If this user has created an event, but it's still being planned...
-			res.success({
-				"status": "WAITING",
-				"event": event
-			});
+		// If we're part of some event
+		if (event != undefined) {
+
+			// If the event is finalized...
+			if (event.get("isComplete")) {
+				res.success({
+					status: "ATTENDING",
+					event: event
+				});
+
+			// If we're invited...
+			} else if (event.get("invitedUsers").includes(userId)) {
+				res.success({
+					status: "INVITED",
+					event: event
+				});
+
+			// Otherwise, either as the creator or an attendee, we're waiting
+			} else {
+				res.success({
+					status: "WAITING",
+					event: event
+				});
+			}
 
 		} else {
-			
-			// Check if this user is attending any events
-			var attendingEventQuery = new Parse.Query(Parse.Object.extend("Event"));
-			attendingEventQuery.equalTo("goingUsers", Parse.User.current().id);
-			return attendingEventQuery.first();
-		}
-
-	}).then(function(attendingEvent) {
-
-		// If the user is attending an event
-		if (attendingEvent != undefined && attendingEvent.get("isFinalized")) {
 			res.success({
-				"status": "ATTENDING",
-				"event": attendingEvent
-			});
-
-		// The user is going to a non-finalized event
-		} else if (attendingEvent != undefined) {
-			res.success({
-				"status": "WAITING",
-				"event": attendingEvent
-			});
-
-		// The user has no current commitments
-		} else {
-			// Check if this user has been invited to any events
-			var invitedEventQuery = new Parse.Query(Parse.Object.extend("Event"));
-			invitedEventQuery.equalTo("invitedUsers", Parse.user.current().id);
-			return invitedEventQuery.first();
-		}
-	}).then(function(invitedEvent) {
-		
-		if (invitedEvent != undefined) {
-			res.success({
-				"status": "INVITED",
-				"event": invitedEvent
-			});
-		} else {
-			res.success({
-				"status": "FREE"
+				status: "FREE"
 			});
 		}
 
@@ -89,7 +74,6 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		res.error(error);
 	});
 });
-
 
 
 
