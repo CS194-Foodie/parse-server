@@ -3,37 +3,67 @@ Parse.Cloud.define('test', function(req, res) {
   res.success('Hi');
 });
 
-// Client will be notified when event with given id is changed
-//  userId is user to be matched
-//  eventId is event to fill for the user
+
+/* CLOUD FUNCTION: matchUser
+--------------------------------
+Handles finding people to eat with the given user.  Attempts to fill in the
+event object created by this user.  Request must contain the following parameters:
+
+    sessionToken - the session token of the user making the request
+    eventId - the objectId of the event object created by this user.  This is the
+                object that will be updated when event details are confirmed.  The
+                user making this request should be listening for changes on this object
+                to know when the event has been confirmed or denied (aka deleted).
+    guests - the number of guests the requesting user would like for this event
+
+Does not respond with any data.
+---------------------------------
+*/
 Parse.Cloud.define('matchUser', function(req, res) {
-    var userId = req.params.userId;
+    var sessionToken = req.params.sessionToken;
     var eventId = req.params.eventId;
     var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
     var query = new Parse.Query(Event); // makes a new query over Events
     query.get(eventId).then(function(event) {
-        res.success(event.get("restaurantName"));
+        res.success(event);
     }, function(error) {
         res.error(error);
     });
 });
 
-// Assumes that user id provided is in the pending portion
-//  of the event's pendingUsers (i.e. an array of user id's) field
+
+/* CLOUD FUNCTION: userRSVP
+-----------------------
+Handles a user's response to whether or not they can go to an event
+they were invited to.  Request must contain the following parameters:
+
+    sessionToken - the session token of the user making the request
+    eventId - the objectId of the event the user is responding to
+    canGo - true/false whether or not the user can go to the event
+
+Does not send any data back in the response.
+-----------------------
+*/
 Parse.Cloud.define('userRSVP', function(req, res) {
-    var userId = req.params.userId;
-    var eventId = req.params.eventId;
     var canGo = req.params.canGo;
-    var Event = Parse.Object.extend("Event");
-    var query = new Parse.Query(Event);
-    query.get(eventId).then(function(event) {
+    
+    // Sign in on behalf of the current user
+    Parse.User.become(req.params.sessionToken).then(function(currUser) {
+      var Event = Parse.Object.extend("Event");
+      var query = new Parse.Query(Event);
+      return query.get(req.params.eventId);
+    }).then(function(event) {
         event.addUnique("unavailableUsers", userId);
         event.remove("pendingUsers", userId);
-        event.save(); // need to call after modifying any field of a Javascript object 
-        res.success(); // & every time you use an array specific modifier, you have to call it again
-    }, function(error) {
-        res.error(error);
-    });
+
+        // need to call .save() after modifying fields of a Javascript object
+        // plus EVERY time you use an array specific modifier
+        return event.save();
+      }).then(function() {
+          res.success();
+      }, function(error) {
+          res.error(error);
+      });
 
 });
 
