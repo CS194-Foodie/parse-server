@@ -4,14 +4,15 @@
  * 		sessionToken - the session token for the user to return the status for
  *
  * Response format:
- *		"status" field - either "FREE", "ATTENDING", "ORGANIZING", or "WAITING"
- *		"eventId" field (for all but "FREE") - eventID of the event the
+ *		"status" field - either "FREE", "INVITED", "ATTENDING", or "WAITING"
+ *		"event" field (for all but "FREE") - eevent object the
  *					the user is going to or waiting on
  *
  * Returns the availability status for a given user.  Does this
  * by checking if the user is currently connected (i.e. has created,
  * or is a part of) to any existing event objects.  Returns JSON
- * containing info about this user.
+ * containing info about this user's status.
+ * --------------------------------
  */
 Parse.Cloud.define("getUserStatus", function(req, res) {
 
@@ -28,8 +29,8 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 			
 			// If this user has created an event, and it is scheduled...
 			res.success({
-				"status": "ORGANIZING",
-				"eventId": event.id
+				"status": "ATTENDING",
+				"event": event
 			});
 
 		} else if (event != undefined) {
@@ -37,28 +38,47 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 			// If this user has created an event, but it's still being planned...
 			res.success({
 				"status": "WAITING",
-				"eventId": event.id
+				"event": event
 			});
 
 		} else {
 			
 			// Check if this user is attending any events
 			var attendingEventQuery = new Parse.Query(Parse.Object.extend("Event"));
-			attendingEventQuery.equalTo("isFinalized", true);
-			attendingEventQuery.equalTo("goingUsers", Parse.User.current());
+			attendingEventQuery.equalTo("goingUsers", Parse.User.current().id);
 			return attendingEventQuery.first();
 		}
 
 	}).then(function(attendingEvent) {
 
 		// If the user is attending an event
-		if (attendingEvent != undefined) {
+		if (attendingEvent != undefined && attendingEvent.get("isFinalized")) {
 			res.success({
 				"status": "ATTENDING",
-				"eventId": attendingEvent.id
+				"event": attendingEvent
+			});
+
+		// The user is going to a non-finalized event
+		} else if (attendingEvent != undefined) {
+			res.success({
+				"status": "WAITING",
+				"event": attendingEvent
 			});
 
 		// The user has no current commitments
+		} else {
+			// Check if this user has been invited to any events
+			var invitedEventQuery = new Parse.Query(Parse.Object.extend("Event"));
+			invitedEventQuery.equalTo("invitedUsers", Parse.user.current().id);
+			return invitedEventQuery.first();
+		}
+	}).then(function(invitedEvent) {
+		
+		if (invitedEvent != undefined) {
+			res.success({
+				"status": "INVITED",
+				"event": invitedEvent
+			});
 		} else {
 			res.success({
 				"status": "FREE"
