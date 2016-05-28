@@ -22,11 +22,18 @@ var api = new ParseServer({
     classNames: ["Event"] // List of classes to support for query subscriptions
   },
   push: {
-    ios: {
-      pfx: './certificate.p12',
-      bundleId: 'com.NJC.Foodie',
-      production: false
-    }
+    ios: [
+      {
+        pfx: './certificate.p12',
+        bundleId: 'com.NJC.Foodie',
+        production: false
+      },
+      {
+        pfx: './certificate-prod.p12',
+        bundleId: 'com.NJC.Foodie',
+        production: true
+      }
+    ]
   }
 });
 // Client-keys like the javascript key or the .NET key are not necessary with parse-server
