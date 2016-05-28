@@ -111,6 +111,7 @@ function inviteUsers(userIds, event, numFriends) {
   event.save();
 }
 
+
 /* CLOUD FUNCTION: matchUser
 --------------------------------
 Handles finding people to eat with the given user.  Attempts to fill in the
@@ -215,6 +216,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
 //     return httpResponse.text;
 //   });
 // }
+
 
 
 /* CLOUD FUNCTION: userRSVP
