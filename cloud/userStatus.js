@@ -21,7 +21,6 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		// First query for events created by this user
 		var ownEventQuery = new Parse.Query(Parse.Object.extend("Event"));
 		ownEventQuery.equalTo("creator", user);
-
 		return ownEventQuery.first();
 	}).then(function(event) {
 
@@ -70,6 +69,8 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		res.error(error);
 	});
 });
+
+
 
 
 /* FOR TESTING ONLY */
