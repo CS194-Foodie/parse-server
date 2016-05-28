@@ -111,18 +111,37 @@ function inviteUsers(userIds, event, numFriends) {
   event.save();
 }
 
-// eventId that is given to us by client; eventId is created BY CLIENT NOT US
+/* CLOUD FUNCTION: matchUser
+--------------------------------
+Handles finding people to eat with the given user.  Attempts to fill in the
+event object created by this user.  Request must contain the following parameters:
+
+    sessionToken - the session token of the user making the request
+    eventId - the objectId of the event object already created by this user.  
+                This is the object that this server will update when event 
+                details are confirmed.  The user making this request should be
+                listening for changes on this object to know when the event
+                has been confirmed or denied (aka deleted).
+    guests - the number of guests the requesting user would like for this event
+
+Does not respond with any data.
+---------------------------------
+*/
 Parse.Cloud.define('matchUser', function(req, res) {
-  var userId = req.params.userId;
+  var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var numFriends = req.params.guests;
-  var eventQuery = new Parse.Query(Parse.Object.extend("Event")); // makes a new query over Events
 
-  console.log('Matching user ' + userId + ' with ' + numFriends + ' friend.');
-  // Get current user
-  var userQuery = new Parse.Query(Parse.User);
-  // Query for users that match the event creator's cuisine preference list
-  userQuery.get(userId).then(function(currUser) {
+  // makes a new query over Events
+  var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
+
+  console.log('Matching user with token ' + sessionToken + ' with ' + 
+    numFriends + ' friend.');
+
+  // Sign in as the current user (after this you can get the requesting user object at
+  // any time by calling Parse.User.current()).
+  Parse.User.become(sessionToken).then(function(currUser) {
+    // Query for users that match the event creator's cuisine preference list
     console.log('\t Curr user found ' + currUser)
     return findFriendsAndRestaurant(currUser, numFriends, 0);
   }).then(function(match) { // consume promise chain and obtain the query data
@@ -130,7 +149,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
     return eventQuery.get(eventId).then(function(event) {
       if (!_.isEmpty(match)) {
           console.log('Match found!')
-          var users = match.users;
+          var users = match.users; // NOTE FROM NICK: These are user objects, not userIds
           var cuisine = match.cuisine;
           var index = match.index;
 
