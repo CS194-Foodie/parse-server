@@ -1,3 +1,5 @@
+require('./userStatus.js');
+
 
 Parse.Cloud.define('test', function(req, res) {
   res.success('Hi');
@@ -22,6 +24,7 @@ Does not respond with any data.
 Parse.Cloud.define('matchUser', function(req, res) {
     var sessionToken = req.params.sessionToken;
     var eventId = req.params.eventId;
+    var numGuests = req.params.guests;
     var Event = Parse.Object.extend("Event"); // specify name of type you're querying for
     var query = new Parse.Query(Event); // makes a new query over Events
     query.get(eventId).then(function(event) {
@@ -46,12 +49,14 @@ Does not send any data back in the response.
 */
 Parse.Cloud.define('userRSVP', function(req, res) {
     var canGo = req.params.canGo;
+    var sessionToken = req.params.sessionToken;
+    var eventId = req.params.eventId;
     
     // Sign in on behalf of the current user
-    Parse.User.become(req.params.sessionToken).then(function(currUser) {
+    Parse.User.become(sessionToken).then(function(currUser) {
       var Event = Parse.Object.extend("Event");
       var query = new Parse.Query(Event);
-      return query.get(req.params.eventId);
+      return query.get(eventId);
     }).then(function(event) {
         event.addUnique("unavailableUsers", userId);
         event.remove("pendingUsers", userId);
