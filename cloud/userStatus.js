@@ -21,7 +21,6 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		// First query for events created by this user
 		var ownEventQuery = new Parse.Query(Parse.Object.extend("Event"));
 		ownEventQuery.equalTo("creator", user);
-		console.log("Event query 1");
 
 		return ownEventQuery.first();
 	}).then(function(event) {
@@ -45,7 +44,6 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		} else {
 			
 			// Check if this user is attending any events
-			console.log("Event query 2");
 			var attendingEventQuery = new Parse.Query(Parse.Object.extend("Event"));
 			attendingEventQuery.equalTo("isFinalized", true);
 			attendingEventQuery.equalTo("goingUsers", Parse.User.current());
