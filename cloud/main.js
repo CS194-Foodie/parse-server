@@ -217,16 +217,33 @@ Parse.Cloud.define('matchUser', function(req, res) {
 // }
 
 
-// Assumes that user id provided is in the invited portion of the
-//  event's invitedUsers (i.e. an array of user id's) field (i.e.
-//  will not remove user from any other Event field, just invitedUsers)
+/* CLOUD FUNCTION: userRSVP
+-----------------------
+Handles a user's response to whether or not they can go to an event
+they were invited to.  Request must contain the following parameters:
+
+    sessionToken - the session token of the user making the request.  The
+                  requesting user MUST be only in the invitedUsers array
+                  of the event below (aka they must be invited to respond)
+    eventId - the objectId of the event the user is responding to
+    canGo - true/false whether or not the user can go to the event
+
+Does not send any data back in the response.
+-----------------------
+*/
 Parse.Cloud.define('userRSVP', function(req, res) {
-  var userId = req.params.userId;
+  var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var canGo = req.params.canGo;
-  var Event = Parse.Object.extend("Event");
-  var query = new Parse.Query(Event);
-  query.get(eventId).then(function(event) {
+
+  Parse.User.become(sessionToken).then(function() {
+    
+    var Event = Parse.Object.extend("Event");
+    var query = new Parse.Query(Event);
+    return query.get(eventId);
+
+  }).then(function(event) {
+    var userId = Parse.User.current().id;
     var numGuests = event.get('numGuests');
     if (canGo) {
       event.addUnique("goingUsers", userId);
