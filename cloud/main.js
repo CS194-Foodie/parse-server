@@ -58,8 +58,12 @@ Parse.Cloud.define('userRSVP', function(req, res) {
       var query = new Parse.Query(Event);
       return query.get(eventId);
     }).then(function(event) {
-        event.addUnique("unavailableUsers", userId);
-        event.remove("pendingUsers", userId);
+
+        if (canGo) {
+            event.addUnique("goingUsers", Parse.User.current().id);
+        } else {
+            event.addUnique("unavailableUsers", Parse.User.current().id);
+        }
 
         // need to call .save() after modifying fields of a Javascript object
         // plus EVERY time you use an array specific modifier
