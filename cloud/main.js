@@ -59,6 +59,8 @@ Parse.Cloud.define('userRSVP', function(req, res) {
       return query.get(eventId);
     }).then(function(event) {
 
+        event.remove("invitedUsers", Parse.User.current().id);
+
         if (canGo) {
             event.addUnique("goingUsers", Parse.User.current().id);
         } else {
