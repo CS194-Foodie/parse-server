@@ -274,6 +274,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
   });
 });
 
+
 // Send a restaurant name, we will return all matching restaurants
 Parse.Cloud.define('yelpFun', function(req, res) {
   Parse.Cloud.httpRequest({
