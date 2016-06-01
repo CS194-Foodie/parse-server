@@ -64,12 +64,27 @@ app.get('/yelp', function(req, res) {
     "location" : req.query.location
   }
   console.log(term);
-  yelp(term).then(function(data) {
+  yelp.search(term).then(function(data) {
     // console.log("DATA: " + data.businesses);
     res.send(data);
   }, function(error) {
     res.error(error);
   });
+});
+
+app.get('/businesses', function(req, res) {
+  var id = req.query.business_id;
+  console.log("QUERYING BUSINESS ID!!!: " + id);
+  yelp.businesses(id).then(function(data) {
+    res.send(data);
+  }, function(error) {
+    res.error(error);
+  });
+  // .then(function(data) {
+  //   res.send(data);
+  // }, function(error) {
+  //   res.error(error);
+  // });
 });
 
 // There will be a test page available on the /test path of your server url
