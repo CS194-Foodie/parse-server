@@ -33,38 +33,44 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
       cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
       console.log("\t\t  Recursive call #" + indexIntoCuisines)
       if (friendsFound.length >= numFriendsRequested) {
-        //
-        console.log("\t\t Found user :D");
+        console.log("\t\t Found users to eat with :D");
         console.log(friendsFound);
         console.log(friendsFound[0].get('userLocation'));
         var eventParty =  { // base case
             "users": friendsFound,
             "numGuests": numFriendsRequested,
             "cuisine": cuisine,
-            "dist": 100, // currUser.get('maxTravelDistance'), // Used to be 40000 meters
-            "location": currUser.get('userLocatingString'),
+            "dist": currUser.get('maxTravelDistance'), // Used to be 40000 meters
+            "location": currUser.get('userLocationString'),
             "lat": currUser.get('userLocation').latitude,
             "long": currUser.get('userLocation').longitude,
             "cuisines": currUser.get('foodPreferences'),
             "index": indexIntoCuisines // Remember where our search stops
         };
+        console.log("\t\t Event party created: ", eventParty, '\n');
+        //if (_.isEmpty(eventParty)) return {};
         console.log("\n\nYelping ... ");
-        console.log("The event party: ", eventParty, '\n');
-        if (_.isEmpty(eventParty)) return {};
-        return queryYelpForRestaurant(eventParty).then(function(restaurantData) {
-          console.log('SANITY CHECK!!!');
-          return queryYelpBusiness(eventParty, restaurantData).then(function(singleRestaurantResult) {
-            console.log("almost done..." + singleRestaurantResult + " " + indexIntoCuisines);
-            console.log('food preferences: ' + currUser.get('foodPreferences'));
-            if (!_.isEmpty(singleRestaurantResult)) {
-              return singleRestaurantResult;
-            } else {
-              if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
-                return {};
+        return queryYelpForRestaurants(eventParty).then(function(restaurantData) {
+          console.log('\tqueryYelpForRestaurant');
+          if(!_.isEmpty(restaurantData)) {
+            return queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData).then(function(singleRestaurantResult) {
+              //console.log('\tfood preferences: ' + currUser.get('foodPreferences'));
+              if (!_.isEmpty(singleRestaurantResult)) {
+                console.log("\tRestaurant Found" + singleRestaurantResult + " " + indexIntoCuisines);
+                return singleRestaurantResult;
+              } else {
+                if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
+                  console.log('base case hit')
+                  return {};
+                }
+                return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
               }
-              return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
-            }
-          });
+            });
+          } else {
+            console.log("TODO recurse")
+            console.log("No restaurants found!");
+            return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
+          }
         });
       }
       console.log('\t\t Recursing more ... ')
@@ -94,24 +100,26 @@ function extractRestaurantData(businesses) {
 }
 
 function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
-  console.log("Another quick sanity check " + restaurantData + " " + index);
-  console.log('id to look up: ' + restaurantData[index].id);
+  console.log("\t Recursion for queryYelpBusinessWrapper")
+  console.log("\t\tRest Data" + restaurantData);
+  console.log("\t\tRest Index: " + index);
+  console.log('\t\tBiz id to look up: ' + restaurantData[index].id);
   return Parse.Cloud.httpRequest({
     method: 'GET',
     url: getServerURL() + "/businesses?business_id=" + restaurantData[index].id
   }).then(function(httpResponse) {
     if (index + 1 == restaurantData.length) {
-      console.log('sadly, no restaurant was found...');
+      console.log('\t\t\tNo matching restaurant found...');
       return {};
     }
-    console.log('httpResponse.data obtained!!!');
+    console.log('\t\t\thttpResponse.data obtained!!!');
     var businessInfo = httpResponse.data;
     if (!_.isEmpty(businessInfo)) {
-      console.log('businessInfo is not empty');
+      console.log('\t\t\tbusinessInfo is not empty');
       var latitude = businessInfo.location.coordinate.latitude;
       var longitude = businessInfo.location.coordinate.longitude;
-      console.log("latitude: " + latitude);
-      console.log("longitude: " + longitude);
+      console.log("\t\t\t\tlatitude: " + latitude);
+      console.log("\t\t\t\tlongitude: " + longitude);
       var numGuests = eventParty.numGuests;
       var restaurantPoint = new Parse.GeoPoint(latitude, longitude);
       var users = eventParty.users;
@@ -119,13 +127,17 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
       var currUserMaxDist = eventParty.dist;
       var invited = [];
       var pending = [];
-      console.log('past all the initialization...');
-      console.log(restaurantPoint.milesTo(currUserLocation));
-      console.log(currUserMaxDist);
+      console.log('\t\t\tSetup user and restaurant geopoints...');
+      console.log('\t\t\tDist from rest to curr loc: '+ restaurantPoint.milesTo(currUserLocation));
+      console.log('\t\t\tUser dist: ' + currUserMaxDist);
       if (restaurantPoint.milesTo(currUserLocation) <= currUserMaxDist) {
-        console.log("search search search!!!");
+        console.log("\t\t\tRestaurant is WITHIN userloc range");
+        console.log("\t\t\t" + users.length + " peers to check")
         _.each(users, function(user) {
-          if (restaurantPoint.milesTo(users.get('userLocation')) <= user.get('maxTravelDistance')) {
+          console.log('\t\t\t\tD rest to user:' + restaurantPoint.milesTo(user.get('userLocation')))
+          console.log('\t\t\t\tUser dist: ' + user.get('maxTravelDistance'));
+          if (restaurantPoint.milesTo(user.get('userLocation')) <= user.get('maxTravelDistance')) {
+            console.log("\t\t\t\t\tRestaurant is WITHIN userloc range");
             if (invited.length < numGuests) {
               invited.push(user);
             } else {
@@ -134,10 +146,10 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
           }
         });
         if (invited.length < numGuests) {
-          console.log('recursing because we did not find enough people for this restaurant');
+          console.log('\t\trecursing because we did not find enough people for this restaurant');
           return queryYelpBusinessWrapper(eventParty, restaurantData, index + 1);
         } else {
-          console.log('We are done!!!');
+          console.log('\t\tAll guests match restaurant');
           eventParty.pendingUsers = pending;
           eventParty.invitedUsers = invited;
           eventParty.restaurantData = restaurantData;
@@ -145,28 +157,28 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
           return eventParty;
         }
       } else {
-        console.log("recursing because the given restaurant is not within the creator's max distance");
+        console.log("\t\trecursing because the given restaurant is not within the creator's max distance");
         return queryYelpBusinessWrapper(eventParty, restaurantData, index + 1);
       }
     } else {
-      console.log("recursing because... well why not?...");
+      console.log("\t\trecursing because... well why not?...");
       return queryYelpBusinessWrapper(eventParty, restaurantData, index + 1);
     }
   });
 }
 
-function queryYelpBusiness(eventParty, restaurantData) {
-  console.log('about to call queryYelpBusinessWrapper for the first time');
+function queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData) {
+  console.log("\tqueryYelpBusinessInfoOfRestaurants");
   return queryYelpBusinessWrapper(eventParty, restaurantData, 0);
 }
 
 function milesToMeters(miles) {
-  return miles;
-  console.log('\t\t\tMETERS!!!: ' + (miles * 1609.34));
+  //return miles;
+  console.log('\tMETERS!!!: ' + (miles * 1609.34));
   return (miles * 1609.34);
 }
 
-function queryYelpForRestaurant(eventParty) {
+function queryYelpForRestaurants(eventParty) {
   return Parse.Cloud.httpRequest({
     method: 'GET',
     url: getServerURL() + "/yelp?category_filter=" + eventParty.cuisine +
@@ -201,8 +213,8 @@ Handles finding people to eat with the given user.  Attempts to fill in the
 event object created by this user.  Request must contain the following parameters:
 
     sessionToken - the session token of the user making the request
-    eventId - the objectId of the event object already created by this user.  
-                This is the object that this server will update when event 
+    eventId - the objectId of the event object already created by this user.
+                This is the object that this server will update when event
                 details are confirmed.  The user making this request should be
                 listening for changes on this object to know when the event
                 has been confirmed or denied (aka deleted).
@@ -219,7 +231,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
   // makes a new query over Events
   var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
 
-  console.log('Matching user with token ' + sessionToken + ' with ' + 
+  console.log('Matching user with token ' + sessionToken + ' with ' +
     numFriends + ' friend.');
 
   // Sign in as the current user (after this you can get the requesting user object at
@@ -236,17 +248,14 @@ Parse.Cloud.define('matchUser', function(req, res) {
           console.log(match);
           var users = match.users; // NOTE FROM NICK: These are user objects, not userIds
           var cuisine = match.cuisine;
-          var cuisineIndex = match.index;
-          var restaurantData = match.restaurantData;
-          var restaurantIndex = 0;
 
-
-          event.set('cuisineIndex', index); // keep track of our index
+          event.set("pendingUsers", match.pendingUsers)
+          event.set("invitedUsers", match.invitedUsers)
+          event.set("cuisines", match.cuisines)
+          event.set("restaurantDataArray", match.restaurantData)
+          event.set("restaruantIndex", match.restaruantIndex);
+          event.set("cuisineIndex", match.index); // keep track of our index
           event.set("numGuests", numFriends); // Keep track of the number of guests within the event
-          // CATHERINE CODE FOR FINDING RESTAURANT HERE:
-
-          // Add restaurant to event (Yelp Query)
-
           // JOHN ADDING IN CODE HERE:
 
           // At this point, we know that the users match according to distance,
@@ -325,7 +334,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
   var canGo = req.params.canGo;
 
   Parse.User.become(sessionToken).then(function() {
-    
+
     var Event = Parse.Object.extend("Event");
     var query = new Parse.Query(Event);
     return query.get(eventId);
