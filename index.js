@@ -74,7 +74,7 @@ app.get('/yelp', function(req, res) {
 
 app.get('/businesses', function(req, res) {
   var id = req.query.business_id;
-  console.log("QUERYING BUSINESS ID!!!: " + id);
+  console.log("\t\tQUERYING BUSINESS ID!!!: " + id);
   yelp.businesses(id).then(function(data) {
     res.send(data);
   }, function(error) {

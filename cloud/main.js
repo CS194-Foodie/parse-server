@@ -10,6 +10,10 @@ var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
 function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines) {
+  if (indexIntoCuisines == currUser.get('foodPreferences').length) {
+    console.log("\t\tBase case hit. No more cuisines to recurse.");
+    return {}; // second base case
+  }
   console.log("\t Finding friends and restaurant ...")
 
   var friendsQuery = new Parse.Query(Parse.User);
@@ -21,13 +25,9 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
   var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
   console.log('\t\t  Food Pref: ' + cuisine)
 
-  console.log('\t\t  Location check? ')
-  // friendsQuery.withinMiles('userLocation', currUser.get('userLocation'),
-  //     currUser.get('maxTravelDistance') + MAX_TRAVEL_DISTANCE_MI);
   console.log('\t\t  Convo Pref? ')
   // friendsQuery.containedIn('conversationPreferences',
   //     currUser.get('conversationPreferences'));
-  friendsQuery.containedIn("foodPreferences", [cuisine])
 
   return friendsQuery.find().then(function(friendsFound) {
       cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
@@ -36,7 +36,7 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
         console.log("\t\t Found users to eat with :D");
         console.log(friendsFound);
         console.log(friendsFound[0].get('userLocation'));
-        var eventParty =  { // base case
+        var eventParty =  {
             "users": friendsFound,
             "numGuests": numFriendsRequested,
             "cuisine": cuisine,
@@ -59,25 +59,17 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
                 console.log("\tRestaurant Found" + singleRestaurantResult + " " + indexIntoCuisines);
                 return singleRestaurantResult;
               } else {
-                if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
-                  console.log('base case hit')
-                  return {};
-                }
+                console.log("No users match the restaurants cuisine X. Recursing to next cuisine.")
                 return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
               }
             });
           } else {
-            console.log("TODO recurse")
-            console.log("No restaurants found!");
+            console.log("No restaurants found! Recursing to next cuisine");
             return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
           }
         });
       }
       console.log('\t\t Recursing more ... ')
-      if (indexIntoCuisines + 1 == currUser.get('foodPreferences').length) {
-        console.log("\t\t Nothing found");
-        return {}; // second base case
-      }
       return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1); // recursive case
   }, function(error) {
     console.log(error);
@@ -100,18 +92,18 @@ function extractRestaurantData(businesses) {
 }
 
 function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
+  if (index == restaurantData.length) {
+    console.log('\t\t\tNo matching restaurant found...');
+    return {};
+  }
   console.log("\t Recursion for queryYelpBusinessWrapper")
-  console.log("\t\tRest Data" + restaurantData);
+  //console.log("\t\tRest Data" + restaurantData);
   console.log("\t\tRest Index: " + index);
   console.log('\t\tBiz id to look up: ' + restaurantData[index].id);
   return Parse.Cloud.httpRequest({
     method: 'GET',
     url: getServerURL() + "/businesses?business_id=" + restaurantData[index].id
   }).then(function(httpResponse) {
-    if (index + 1 == restaurantData.length) {
-      console.log('\t\t\tNo matching restaurant found...');
-      return {};
-    }
     console.log('\t\t\thttpResponse.data obtained!!!');
     var businessInfo = httpResponse.data;
     if (!_.isEmpty(businessInfo)) {
@@ -157,11 +149,12 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
           return eventParty;
         }
       } else {
+        // TODO: WILL NEVER GET HERE bc constraint is satisfied earlier
         console.log("\t\trecursing because the given restaurant is not within the creator's max distance");
         return queryYelpBusinessWrapper(eventParty, restaurantData, index + 1);
       }
     } else {
-      console.log("\t\trecursing because... well why not?...");
+      console.log("\t\trecursing bc no business for that business id was found (yelp bug)");
       return queryYelpBusinessWrapper(eventParty, restaurantData, index + 1);
     }
   });
