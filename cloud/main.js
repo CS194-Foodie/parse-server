@@ -26,8 +26,8 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
   console.log('\t\t  Food Pref: ' + cuisine)
 
   console.log('\t\t  Convo Pref? ')
-  // friendsQuery.containedIn('conversationPreferences',
-  //     currUser.get('conversationPreferences'));
+  friendsQuery.containedIn('conversationPreferences',
+      currUser.get('conversationPreferences'));
 
   return friendsQuery.find().then(function(friendsFound) {
       cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
