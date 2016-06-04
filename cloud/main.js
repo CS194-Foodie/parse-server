@@ -9,10 +9,11 @@ require('./userStatus.js');
 var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
-function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines) {
+function findFriendsAndRestaurant(currUser, numFriendsRequested, 
+  indexIntoCuisines, indexIntoRestaurant) {
   if (indexIntoCuisines == currUser.get('foodPreferences').length) {
     console.log("\t\tBase case hit. No more cuisines to recurse.");
-    return {}; // second base case
+    return Parse.Promise.as(); // second base case
   }
   console.log("\t Finding friends and restaurant ...")
 
@@ -23,6 +24,8 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
 
   // get the current cuisine type we want to match against other users
   var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
+
+  friendsQuery.containedIn('foodPreferences', [cuisine]);
   console.log('\t\t  Food Pref: ' + cuisine)
 
   console.log('\t\t  Convo Pref? ')
@@ -48,29 +51,27 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisin
             "index": indexIntoCuisines // Remember where our search stops
         };
         console.log("\t\t Event party created: ", eventParty, '\n');
-        //if (_.isEmpty(eventParty)) return {};
         console.log("\n\nYelping ... ");
         return queryYelpForRestaurants(eventParty).then(function(restaurantData) {
           console.log('\tqueryYelpForRestaurant');
           if(!_.isEmpty(restaurantData)) {
-            return queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData).then(function(singleRestaurantResult) {
-              //console.log('\tfood preferences: ' + currUser.get('foodPreferences'));
-              if (!_.isEmpty(singleRestaurantResult)) {
+            return queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData, indexIntoRestaurant).then(function(singleRestaurantResult) {
+              if (singleRestaurantResult != undefined) {
                 console.log("\tRestaurant Found" + singleRestaurantResult + " " + indexIntoCuisines);
                 return singleRestaurantResult;
               } else {
                 console.log("No users match the restaurants cuisine X. Recursing to next cuisine.")
-                return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
+                return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0);
               }
             });
           } else {
             console.log("No restaurants found! Recursing to next cuisine");
-            return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1);
+            return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0);
           }
         });
       }
       console.log('\t\t Recursing more ... ')
-      return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1); // recursive case
+      return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0); // recursive case
   }, function(error) {
     console.log(error);
   })
@@ -94,7 +95,7 @@ function extractRestaurantData(businesses) {
 function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
   if (index == restaurantData.length) {
     console.log('\t\t\tNo matching restaurant found...');
-    return {};
+    return Parse.Promise.as();
   }
   console.log("\t Recursion for queryYelpBusinessWrapper")
   //console.log("\t\tRest Data" + restaurantData);
@@ -160,9 +161,9 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
   });
 }
 
-function queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData) {
+function queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData, indexIntoRestaurant) {
   console.log("\tqueryYelpBusinessInfoOfRestaurants");
-  return queryYelpBusinessWrapper(eventParty, restaurantData, 0);
+  return queryYelpBusinessWrapper(eventParty, restaurantData, indexIntoRestaurant);
 }
 
 function milesToMeters(miles) {
@@ -185,19 +186,45 @@ function queryYelpForRestaurants(eventParty) {
   });
 }
 
-function inviteUsers(userIds, event, numFriends) {
-  // Add users to pending or invited
-  _.each(userIds, function(userId){
-    if (numFriends > 0) {
-      event.addUnique('invitedUsers', userId);
-      // Use the userId and the event to send a
-      //  push notification to the invited user
-    } else {
-      event.addUnique('pendingUsers', userId);
+function inviteUsers(users) {
+  var pushQuery = new Parse.Query(Parse.Installation);
+  pushQuery.containedIn("user", users);
+
+  // Silent push to devices (no banner)
+  return Parse.Push.send({
+    where: pushQuery,
+    data: {
+      "content-available": 1
     }
-    numFriends = numFriends - 1;
   });
-  event.save();
+}
+
+// Sends banner push to given users that event has been cancelled. 
+function notifyEventCancelled(users) {
+  return notifyUsersWithMessage(users, "Unfortunately, we couldn't plan your event.");
+}
+
+
+// Sends banner push to given users that event has been planned.
+function notifyEventSuccess(users) {
+  return notifyUsersWithMessage(users, "Let's eat!  Your event was successfully planned.");
+}
+
+
+// Sends banner push to given users with given message as banner alert.
+// Also increments app badge count on iOS.
+function notifyUsersWithMessage(users, message) {
+  var pushQuery = new Parse.Query(Parse.Installation);
+  pushQuery.containedIn("user", users);
+
+  // Banner push notification
+  return Parse.Push.send({
+    where: pushQuery,
+    data: {
+      alert: message,
+      badge: "Increment"
+    }
+  });
 }
 
 /* CLOUD FUNCTION: matchUser
@@ -221,9 +248,6 @@ Parse.Cloud.define('matchUser', function(req, res) {
   var eventId = req.params.eventId;
   var numFriends = req.params.guests;
 
-  // makes a new query over Events
-  var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
-
   console.log('Matching user with token ' + sessionToken + ' with ' +
     numFriends + ' friend.');
 
@@ -232,11 +256,23 @@ Parse.Cloud.define('matchUser', function(req, res) {
   Parse.User.become(sessionToken).then(function(currUser) {
     // Query for users that match the event creator's cuisine preference list
     console.log('\t Curr user found ' + currUser)
-    return findFriendsAndRestaurant(currUser, numFriends, 0);
-  }).then(function(match) { // consume promise chain and obtain the query data
+    return findFriendsAndRestaurant(currUser, numFriends, 0, 0);
+  }).then(function(match) {
+    return updateEvent(match, eventId, numFriends)
+  }).then(function() {
+    console.log('Finished matching user')
+    res.success();
+  }, function(error) {
+    res.error(error);
+  });
+
+
+function updateEvent(match, eventId, numFriends) { // consume promise chain and obtain the query data
+    // makes a new query over Events
+    var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
     console.log("\t\t\tMATCH" + match);
     return eventQuery.get(eventId).then(function(event) {
-      if (!_.isEmpty(match)) {
+      if (match != undefined) {
           console.log('Match found!');
           console.log(match);
           var users = match.users; // NOTE FROM NICK: These are user objects, not userIds
@@ -249,33 +285,23 @@ Parse.Cloud.define('matchUser', function(req, res) {
           event.set("restaruantIndex", match.restaruantIndex);
           event.set("cuisineIndex", match.index); // keep track of our index
           event.set("numGuests", numFriends); // Keep track of the number of guests within the event
-          // JOHN ADDING IN CODE HERE:
+          event.set("goingUsers", []);
+          event.set("unavailableUsers", []);
 
-          // At this point, we know that the users match according to distance,
-          //  food, and conversation preferences. We also have a restaurant.
-          //  We now need to invite the users (should be conducted asynchronously)
+          inviteUsers(match.invitedUsers); // This should return a promise...
 
-          // inviteUsers(users, event, numFriends); // This should return a promise...
-
-          //  eventQuery.get(eventId).then(function(event) {
-          //   // Set restaurant
-          //   event.addUnique("restraurantName", userId);
-          //   event.addUnique("restraurantAddress", userId);
-          //   event.save();
-          // }
-          event.save();
+          return event.save().then(function () {
+            return inviteUsers(match.invitedUsers);
+          });
 
       } else {
         console.log('No match found');
-        return event.destroy();
+        return event.destroy().then(function() {
+          return notifyEventCancelled([Parse.User.current()]);
+        });
       }
     });
-  }).then(function() {
-    console.log('Finished matching user')
-    res.success();
-  }, function(error) {
-    res.error(error);
-  });
+  }
 
   // TODO LIST:
   // 1) We need to notify the user that they've been invited // CHECK WITH NICK
@@ -325,7 +351,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var canGo = req.params.canGo;
-
+  console.log('retrieved parameters');
   Parse.User.become(sessionToken).then(function() {
 
     var Event = Parse.Object.extend("Event");
@@ -333,32 +359,58 @@ Parse.Cloud.define('userRSVP', function(req, res) {
     return query.get(eventId);
 
   }).then(function(event) {
-    var userId = Parse.User.current().id;
+    console.log('just entered the meat of the method...');
+    var user = Parse.User.current();
+    console.log('user: ' + user);
     var numGuests = event.get('numGuests');
+    console.log('numGuests: ' + numGuests);
+    console.log(event.get('unavailableUsers'));
     if (canGo) {
-      event.addUnique("goingUsers", userId);
+      console.log(user + " can go");
+      event.addUnique("goingUsers", user);
     } else {
-      event.addUnique("unavailableUsers", userId);
+      console.log(user + " can't go");
+      event.addUnique("unavailableUsers", user);
     }
-    event.remove("invitedUsers", userId);
+    event.remove("invitedUsers", user);
     // Check if the list of pending users is below
     //  the number of users that we want for the event
     if (event.get('goingUsers').length == numGuests) {
       // Signal that we're done and the event is good to go
       event.set('isComplete', true);
-      event.save();
-      res.success();
-    } else if (event.get('pendingUsers').length < numGuests) {
+      return event.save().then(function() {
+        var everyone = event.get('goingUsers');
+        everyone.push(event.get('creator'));
+        return notifyEventSuccess(everyone);
+      });
+    } else if (event.get('pendingUsers').length == 0) {
       // REQUERY! need to clear out the old information in
       //  our event's arrays
-      res.success();
+      console.log('REQUERYing!!!');
+      var numFriendsRequested = event.get('numGuests');
+      var cuisineIndex = event.get('cuisineIndex');
+      var restaurantIndex = event.get('restaurantIndex');
+
+
+      // We've exhausted all the restaurants of a cuisine. Time to do another cuisine!
+      if (restaruantIndex == event.get('restaurantDataArray').length) {
+        cuisineIndex += 1;
+      }
+      // Otherwise, keep the current cuisine (other users exist), but change the restaurant 
+
+      var userQuery = new Parse.Query(Parse.User);
+      return findFriendsAndRestaurant(event.get('creator'), 
+          numFriendsRequested, cuisineIndex, restaurantIndex + 1).then(function(match) {
+        return updateEvent(match, eventId, numFriendsRequested);
+      });
     }
     // Send invite to the next pending user // CHECK WITH NICK
     var nextInvitee = _.first(event.get('pendingUsers'));
     event.remove('pendingUsers', nextInvitee);
     event.addUnique('invitedUsers', nextInvitee);
-    event.save(); // need to call after modifying any field of a Javascript object
-    res.success(); // & every time you use an array specific modifier, you have to call it again
+    return event.save();
+  }).then(function() {
+    res.success();
   }, function(error) {
     res.error(error);
   });
@@ -376,14 +428,6 @@ Parse.Cloud.define('yelpFun', function(req, res) {
     res.error("An error occurred: " + httpResponse.status);
   });
 });
-
-// matchUser STUB; TO REMOVE!!!
-// query.get(eventId).then(function(event) {
-// res.success(event.get("restaurantName"));
-// }, function(error) {
-// res.error(error);
-// });
-
 
 /* SAMPLE CODE */
 
