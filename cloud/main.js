@@ -146,7 +146,7 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
           eventParty.pendingUsers = pending;
           eventParty.invitedUsers = invited;
           eventParty.restaurantData = restaurantData;
-          eventParty.restaruantIndex = index;
+          eventParty.restaurantIndex = index;
           return eventParty;
         }
       } else {
@@ -282,7 +282,7 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
           event.set("invitedUsers", match.invitedUsers)
           event.set("cuisines", match.cuisines)
           event.set("restaurantDataArray", match.restaurantData)
-          event.set("restaruantIndex", match.restaruantIndex);
+          event.set("restaurantIndex", match.restaurantIndex);
           event.set("cuisineIndex", match.index); // keep track of our index
           event.set("numGuests", numFriends); // Keep track of the number of guests within the event
           event.set("goingUsers", []);
@@ -384,20 +384,17 @@ Parse.Cloud.define('userRSVP', function(req, res) {
         return notifyEventSuccess(everyone);
       });
     } else if (event.get('pendingUsers').length == 0) {
-      // REQUERY! need to clear out the old information in
-      //  our event's arrays
       console.log('REQUERYing!!!');
       var numFriendsRequested = event.get('numGuests');
       var cuisineIndex = event.get('cuisineIndex');
       var restaurantIndex = event.get('restaurantIndex');
 
-
       // We've exhausted all the restaurants of a cuisine. Time to do another cuisine!
-      if (restaruantIndex == event.get('restaurantDataArray').length) {
+      if (restaurantIndex == event.get('restaurantDataArray').length) {
         cuisineIndex += 1;
       }
-      // Otherwise, keep the current cuisine (other users exist), but change the restaurant 
 
+      // Otherwise, keep the current cuisine (other users exist), but change the restaurant 
       var userQuery = new Parse.Query(Parse.User);
       return findFriendsAndRestaurant(event.get('creator'), 
           numFriendsRequested, cuisineIndex, restaurantIndex + 1).then(function(match) {
