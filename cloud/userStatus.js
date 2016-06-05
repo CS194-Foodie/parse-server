@@ -23,7 +23,7 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		// attending, or invited to)
 		var Event = Parse.Object.extend("Event");
 		var ownEventQuery = new Parse.Query(Event);
-		ownEventQuery.equalTo("creatorId", user.id);
+		ownEventQuery.equalTo("creator", user);
 
 		var invitedEventQuery = new Parse.Query(Event);
 		invitedEventQuery.equalTo("invitedUsers", user.id);
