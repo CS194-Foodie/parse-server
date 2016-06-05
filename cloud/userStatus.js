@@ -26,10 +26,10 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 		ownEventQuery.equalTo("creator", user);
 
 		var invitedEventQuery = new Parse.Query(Event);
-		invitedEventQuery.equalTo("invitedUsers", user.id);
+		invitedEventQuery.equalTo("invitedUsers", user);
 
 		var goingEventQuery = new Parse.Query(Event);
-		goingEventQuery.equalTo("goingUsers", user.id);
+		goingEventQuery.equalTo("goingUsers", user);
 
 		return Parse.Query.or(ownEventQuery, invitedEventQuery, 
 			goingEventQuery).first();
@@ -37,10 +37,13 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 
 		console.log("Found event - " + JSON.stringify(event));
 
-		var userId = Parse.User.current().id;
-
 		// If we're part of some event
 		if (event != undefined) {
+
+			// See if this user is in this event's list of invited users
+			var invited = event.get("invitedUsers").find(function(invitedUser) {
+				return invitedUser.id == Parse.User.current().id;
+			}) != undefined;
 
 			// If the event is finalized...
 			if (event.get("isComplete")) {
@@ -50,7 +53,7 @@ Parse.Cloud.define("getUserStatus", function(req, res) {
 				});
 
 			// If we're invited...
-			} else if (event.get("invitedUsers").includes(userId)) {
+			} else if (invited) {
 				res.success({
 					status: "INVITED",
 					event: event
