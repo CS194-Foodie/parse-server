@@ -33,7 +33,7 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested,
       currUser.get('conversationPreferences'));
 
   return friendsQuery.find().then(function(friendsFound) {
-      cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
+      cuisine = currUser.get('foodPreferences')[indexIntoCuisines].toLowerCase();
       console.log("\t\t  Recursive call #" + indexIntoCuisines)
       if (friendsFound.length >= numFriendsRequested) {
         console.log("\t\t Found users to eat with :D");
@@ -405,7 +405,9 @@ Parse.Cloud.define('userRSVP', function(req, res) {
     var nextInvitee = _.first(event.get('pendingUsers'));
     event.remove('pendingUsers', nextInvitee);
     event.addUnique('invitedUsers', nextInvitee);
-    return event.save();
+    return event.save().then(function() {
+      return inviteUsers([nextInvitee]);
+    });
   }).then(function() {
     res.success();
   }, function(error) {
