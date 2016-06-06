@@ -244,6 +244,7 @@ Does not respond with any data.
 ---------------------------------
 */
 Parse.Cloud.define('matchUser', function(req, res) {
+  Parse.Cloud.useMasterKey();
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var numFriends = req.params.guests;
@@ -348,6 +349,7 @@ Does not send any data back in the response.
 -----------------------
 */
 Parse.Cloud.define('userRSVP', function(req, res) {
+  Parse.Cloud.useMasterKey();
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var canGo = req.params.canGo;
