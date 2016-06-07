@@ -191,7 +191,7 @@ function queryYelpForRestaurants(eventParty) {
   });
 }
 
-function inviteUsers(users) {
+function inviteUsers(users, eventId) {
   console.log("Inviting " + users);
   // return Parse.Promise.as(); // TODO: Remove
   var pushQuery = new Parse.Query(Parse.Installation);
@@ -202,7 +202,8 @@ function inviteUsers(users) {
     where: pushQuery,
     data: {
       "content-available": 1,
-      FoodieNotificationType: "RSVP"
+      FoodieNotificationType: "RSVP",
+      eventId: eventId
     }
   }, { useMasterKey: true });
 }
@@ -299,7 +300,7 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
         event.set("goingUsers", []);
 
         return event.save().then(function () {
-          return inviteUsers(match.invitedUsers);
+          return inviteUsers(match.invitedUsers, eventId);
         });
 
     } else {
@@ -390,7 +391,7 @@ Parse.Cloud.define('userRSVP', function(req, res) {
           }
           console.log(inviteeList);
           return event.save().then(function() {
-            return inviteUsers(inviteeList);
+            return inviteUsers(inviteeList, eventId);
           });
         } else {
           console.log('NO BODY LEFT LOL');
