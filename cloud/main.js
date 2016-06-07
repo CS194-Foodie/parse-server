@@ -10,7 +10,9 @@ var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
 function findFriendsAndRestaurant(currUser, numFriendsRequested, 
-  indexIntoCuisines, indexIntoRestaurant) {
+  indexIntoCuisines, indexIntoRestaurant, unavailable) {
+  console.log('currUser: ' + currUser);
+  console.log('foodPreferences: ' + currUser.get('foodPreferences'));
   if (indexIntoCuisines == currUser.get('foodPreferences').length) {
     console.log("\t\tBase case hit. No more cuisines to recurse.");
     return Parse.Promise.as(); // second base case
@@ -24,11 +26,14 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested,
 
   // get the current cuisine type we want to match against other users
   var cuisine = currUser.get('foodPreferences')[indexIntoCuisines];
-
+  console.log(unavailable);
+  console.log('adding constraint that users cannot come from: ' + getUserIds(unavailable));
+  friendsQuery.notContainedIn('objectId', getUserIds(unavailable));
+  console.log('got past limiting the users in unavailable...');
   friendsQuery.containedIn('foodPreferences', [cuisine]);
-  console.log('\t\t  Food Pref: ' + cuisine)
+  console.log('\t\t  Food Pref: ' + cuisine);
 
-  console.log('\t\t  Convo Pref? ')
+  console.log('\t\t  Convo Pref? ');
   friendsQuery.containedIn('conversationPreferences',
       currUser.get('conversationPreferences'));
 
@@ -61,21 +66,31 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested,
                 return singleRestaurantResult;
               } else {
                 console.log("No users match the restaurants cuisine X. Recursing to next cuisine.")
-                return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0);
+                return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0, unavailable);
               }
             });
           } else {
             console.log("No restaurants found! Recursing to next cuisine");
-            return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0);
+            return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0, unavailable);
           }
         });
       }
       console.log('\t\t Recursing more ... ')
-      return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0); // recursive case
+      return findFriendsAndRestaurant(currUser, numFriendsRequested, indexIntoCuisines + 1, 0, unavailable); // recursive case
   }, function(error) {
     console.log(error);
-  })
+  });
 }
+
+
+function getUserIds(unavailable) {
+  var result = [];
+  _.each(unavailable, function(user) {
+    result.push(user.id);
+  });
+  return result;
+}
+
 
 function extractRestaurantData(businesses) {
   var result = [];
@@ -85,7 +100,9 @@ function extractRestaurantData(businesses) {
       "name" : business.name,
       "address" : business.location.address,
       "link" : business.url,
-      "rating" : business.rating
+      "rating" : business.rating,
+      "lat" : business.location.coordinate.latitude,
+      "lon" : business.location.coordinate.longitude
     };
     result.push(data);
   });
@@ -260,7 +277,7 @@ Parse.Cloud.define('matchUser', function(req, res) {
   Parse.User.become(sessionToken).then(function(currUser) {
     // Query for users that match the event creator's cuisine preference list
     console.log('\t Curr user found ' + currUser)
-    return findFriendsAndRestaurant(currUser, numFriends, 0, 0);
+    return findFriendsAndRestaurant(currUser, numFriends, 0, 0, []);
   }).then(function(match) {
     return updateEvent(match, eventId, numFriends)
   }).then(function() {
@@ -269,41 +286,40 @@ Parse.Cloud.define('matchUser', function(req, res) {
   }, function(error) {
     res.error(error);
   });
-
+});
 
 function updateEvent(match, eventId, numFriends) { // consume promise chain and obtain the query data
     // makes a new query over Events
-    var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
-    console.log("\t\t\tMATCH" + match);
-    return eventQuery.get(eventId).then(function(event) {
-      if (match != undefined) {
-          console.log('Match found!');
-          console.log(match);
-          var users = match.users; // NOTE FROM NICK: These are user objects, not userIds
-          var cuisine = match.cuisine;
+  var eventQuery = new Parse.Query(Parse.Object.extend("Event"));
+  console.log("\t\t\tMATCH" + match);
+  return eventQuery.get(eventId).then(function(event) {
+    if (match != undefined) {
+        console.log('Match found!');
+        console.log(match);
 
-          event.set("pendingUsers", match.pendingUsers)
-          event.set("invitedUsers", match.invitedUsers)
-          event.set("cuisines", match.cuisines)
-          event.set("restaurantDataArray", match.restaurantData)
-          event.set("restaurantIndex", match.restaurantIndex);
-          event.set("cuisineIndex", match.index); // keep track of our index
-          event.set("numGuests", numFriends); // Keep track of the number of guests within the event
-          event.set("goingUsers", []);
-          event.set("unavailableUsers", []);
+        event.set("pendingUsers", match.pendingUsers);
+        event.set("invitedUsers", match.invitedUsers);
+        event.set("cuisine", match.cuisine);
+        event.set("cuisines", match.cuisines);
+        event.set("restaurantDataArray", match.restaurantData)
+        event.set("restaurantIndex", match.restaurantIndex);
+        event.set("restaurantInfo", match.restaurantData[match.restaurantIndex]);
+        event.set("cuisineIndex", match.index); // keep track of our index
+        event.set("numGuests", numFriends); // Keep track of the number of guests within the event
+        event.set("goingUsers", []);
 
-          return event.save().then(function () {
-            return inviteUsers(match.invitedUsers);
-          });
-
-      } else {
-        console.log('No match found');
-        return event.destroy().then(function() {
-          return notifyEventCancelled([Parse.User.current()]);
+        return event.save().then(function () {
+          return inviteUsers(match.invitedUsers);
         });
-      }
-    });
-  }
+
+    } else {
+      console.log('No match found');
+      return event.destroy().then(function() {
+        return notifyEventCancelled([Parse.User.current()]);
+      });
+    }
+  });
+}
 
   // TODO LIST:
   // 1) We need to notify the user that they've been invited // CHECK WITH NICK
@@ -318,7 +334,7 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
   //      - If number of potential attendees drops below numGuests, restart the search (i.e. step 2)
   // 4) If there are multiple people that fit the ticket, randomize the results
   // infty) FINAL STEP: We need to populate our eventId once everything is found
-});
+
 
 /* Returns a JSON (TODO ?) a restaurant according to:
 * - Shared cuisine interest
@@ -379,43 +395,82 @@ Parse.Cloud.define('userRSVP', function(req, res) {
     //  the number of users that we want for the event
     if (event.get('goingUsers').length == numGuests) {
       // Signal that we're done and the event is good to go
+      console.log('Completed scheduling our event');
       event.set('isComplete', true);
       return event.save().then(function() {
         var everyone = event.get('goingUsers');
         everyone.push(event.get('creator'));
         return notifyEventSuccess(everyone);
       });
-    } else if (event.get('pendingUsers').length == 0) {
-      console.log('REQUERYing!!!');
-      var numFriendsRequested = event.get('numGuests');
-      var cuisineIndex = event.get('cuisineIndex');
-      var restaurantIndex = event.get('restaurantIndex');
-
-      // We've exhausted all the restaurants of a cuisine. Time to do another cuisine!
-      if (restaurantIndex == event.get('restaurantDataArray').length) {
-        cuisineIndex += 1;
+    } else if (event.get('invitedUsers').length == 0) { // Everyone invited so far has responded...
+      if (event.get('pendingUsers').length == 0) { // Additionally, if pendingUsers is empty, we need to requery
+        console.log('REQUERYing!!!');
+        return event.save().then(function() {
+          return requery(event, eventId);
+        });
+      } else {
+        // Send invite to the next pending user // CHECK WITH NICK
+        var numToInvite = numGuests - event.get('goingUsers');
+        console.log("inviting " + numToInvite + " other users");
+        var inviteeList = [];
+        var pendingUserList = event.get('pendingUsers');
+        if (event.get('pendingUsers').length >= numToInvite) {
+          console.log('there are people to invite');
+          for (var i = 0; i < numToInvite; i++) {
+            console.log('iterating...');
+            var nextInvitee = pendingUserList.shift();
+            console.log('nextInvitee: ' + nextInvitee);
+            if (nextInvitee != undefined) {
+              console.log('blah');
+              event.remove('pendingUsers', nextInvitee);
+              console.log('blee');
+              event.addUnique('invitedUsers', nextInvitee);
+            }
+            inviteeList.push(nextInvitee);
+          }
+          console.log(inviteeList);
+          return event.save().then(function() {
+            return inviteUsers(inviteeList);
+          });
+        } else {
+          console.log('NO BODY LEFT LOL');
+          return event.save().then(function() {
+            return requery(event, eventId);
+          });
+        }
       }
-
-      // Otherwise, keep the current cuisine (other users exist), but change the restaurant 
-      var userQuery = new Parse.Query(Parse.User);
-      return findFriendsAndRestaurant(event.get('creator'), 
-          numFriendsRequested, cuisineIndex, restaurantIndex + 1).then(function(match) {
-        return updateEvent(match, eventId, numFriendsRequested);
-      });
+    } else {
+      return event.save();
     }
-    // Send invite to the next pending user // CHECK WITH NICK
-    var nextInvitee = _.first(event.get('pendingUsers'));
-    event.remove('pendingUsers', nextInvitee);
-    event.addUnique('invitedUsers', nextInvitee);
-    return event.save().then(function() {
-      return inviteUsers([nextInvitee]);
-    });
   }).then(function() {
     res.success();
   }, function(error) {
+    console.log("ERROR!: " + error);
     res.error(error);
   });
 });
+
+
+function requery(event, eventId) {
+  var numFriendsRequested = event.get('numGuests');
+  var cuisineIndex = event.get('cuisineIndex');
+  var restaurantIndex = event.get('restaurantIndex');
+  // We've exhausted all the restaurants of a cuisine. Time to do another cuisine!
+  if (restaurantIndex == event.get('restaurantDataArray').length) {
+    cuisineIndex += 1;
+  }
+  // Otherwise, keep the current cuisine (other users exist), but change the restaurant 
+  var userQuery = new Parse.Query(Parse.User);
+  console.log('requerying...');
+  return event.get('creator').fetch().then(function(fetchedCreator) {//Parse.Object.fetchAllIfNeeded([event.get('creator')]);
+    console.log('requery call to findFriendsAndRestaurant...' + fetchedCreator);
+    return findFriendsAndRestaurant(fetchedCreator, numFriendsRequested, 
+      cuisineIndex, restaurantIndex + 1, event.get('unavailableUsers'));
+  }).then(function(match) {
+    console.log('requery call to updateEvent...');
+    return updateEvent(match, eventId, numFriendsRequested);
+  });
+}
 
 
 // Send a restaurant name, we will return all matching restaurants
