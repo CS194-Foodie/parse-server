@@ -95,7 +95,8 @@ function extractRestaurantData(businesses) {
       "address" : business.location.address,
       "rating" : business.rating,
       "lat" : business.location.coordinate.latitude,
-      "lon" : business.location.coordinate.longitude
+      "lon" : business.location.coordinate.longitude,
+      "display_address": business.location.display_address
     };
     result.push(data);
   });
