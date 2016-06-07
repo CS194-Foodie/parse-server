@@ -187,6 +187,8 @@ function queryYelpForRestaurants(eventParty) {
 }
 
 function inviteUsers(users) {
+  console.log("Inviting " + users);
+  return Parse.Promise.as(); // TODO: Remove
   var pushQuery = new Parse.Query(Parse.Installation);
   pushQuery.containedIn("user", users);
 
@@ -196,7 +198,7 @@ function inviteUsers(users) {
     data: {
       "content-available": 1
     }
-  });
+  }, { useMasterKey: true });
 }
 
 // Sends banner push to given users that event has been cancelled. 
@@ -214,6 +216,8 @@ function notifyEventSuccess(users) {
 // Sends banner push to given users with given message as banner alert.
 // Also increments app badge count on iOS.
 function notifyUsersWithMessage(users, message) {
+  console.log("Notifying: " + message + " - " + users);
+  return Parse.Promise.as(); // TODO: remove
   var pushQuery = new Parse.Query(Parse.Installation);
   pushQuery.containedIn("user", users);
 
@@ -224,7 +228,7 @@ function notifyUsersWithMessage(users, message) {
       alert: message,
       badge: "Increment"
     }
-  });
+  }, { useMasterKey: true });
 }
 
 /* CLOUD FUNCTION: matchUser
@@ -244,7 +248,6 @@ Does not respond with any data.
 ---------------------------------
 */
 Parse.Cloud.define('matchUser', function(req, res) {
-  Parse.Cloud.useMasterKey();
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var numFriends = req.params.guests;
@@ -288,8 +291,6 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
           event.set("numGuests", numFriends); // Keep track of the number of guests within the event
           event.set("goingUsers", []);
           event.set("unavailableUsers", []);
-
-          inviteUsers(match.invitedUsers); // This should return a promise...
 
           return event.save().then(function () {
             return inviteUsers(match.invitedUsers);
@@ -349,7 +350,6 @@ Does not send any data back in the response.
 -----------------------
 */
 Parse.Cloud.define('userRSVP', function(req, res) {
-  Parse.Cloud.useMasterKey();
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
   var canGo = req.params.canGo;
@@ -435,6 +435,23 @@ Parse.Cloud.define('yelpFun', function(req, res) {
 // `Hello, World!` equivalent lol...
 Parse.Cloud.define('hello', function(req, res) {
   res.success('Hi');
+});
+
+Parse.Cloud.define('sendPush', function(req, res) {
+  var pushQuery = new Parse.Query(Parse.Installation);
+
+  // Banner push notification
+  Parse.Push.send({
+    where: pushQuery,
+    data: {
+      alert: "Hello world!",
+      badge: "Increment"
+    }
+  }, { useMasterKey: true }).then(function() {
+    res.success("Sent.");
+  }, function(error) {
+    res.error("Error: " + JSON.stringify(error));
+  });
 });
 
 
