@@ -201,7 +201,8 @@ function inviteUsers(users) {
   return Parse.Push.send({
     where: pushQuery,
     data: {
-      "content-available": 1
+      "content-available": 1,
+      FoodieNotificationType: "RSVP"
     }
   }, { useMasterKey: true });
 }
@@ -231,7 +232,8 @@ function notifyUsersWithMessage(users, message) {
     where: pushQuery,
     data: {
       alert: message,
-      badge: "Increment"
+      badge: "Increment",
+      FoodieNotificationType: "Message"
     }
   }, { useMasterKey: true });
 }
