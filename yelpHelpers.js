@@ -7,7 +7,7 @@ var yelp = new Yelp({
 });
 
 // This returns a promise
-function testFunc(term) {
+function searchFunc(term) {
 	return yelp.search(term).then(function(data) {
 		// console.log(data);
 		return data;
@@ -16,4 +16,15 @@ function testFunc(term) {
 	});
 }
 
-module.exports = testFunc;
+function businessesFunc(id) {
+	return yelp.business(id).then(function(data) {
+		return data;
+	}, function(error) {
+		console.log(error);
+	});
+}
+
+module.exports = {
+	"search": searchFunc,
+	"businesses" : businessesFunc
+};
