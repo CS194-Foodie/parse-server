@@ -1,11 +1,5 @@
 require('./userStatus.js');
 
-// Important flags to keep in mind:
-//  - CHECK WITH CATHERINE = for Catherine to verify as `ok`
-//  - CHECK WITH JOHN = for John to verify as `ok`
-//  - CHECK WITH NICK = for Nick to verify as `ok`
-//  - TODO = for anyone to look at and see if they can start/tackle
-//      the issue at hand.
 var _ = require('../node_modules/underscore/underscore.js')
 // Returns a PROMISE that contains the results of our query
 //  This promise will then be consumed in the above query.get(...)...
@@ -48,7 +42,7 @@ function findFriendsAndRestaurant(currUser, numFriendsRequested,
             "users": friendsFound,
             "numGuests": numFriendsRequested,
             "cuisine": cuisine,
-            "dist": currUser.get('maxTravelDistance'), // Used to be 40000 meters
+            "dist": currUser.get('maxTravelDistance'),
             "location": currUser.get('userLocationString'),
             "lat": currUser.get('userLocation').latitude,
             "long": currUser.get('userLocation').longitude,
@@ -99,7 +93,6 @@ function extractRestaurantData(businesses) {
       "id" : business.id,
       "name" : business.name,
       "address" : business.location.address,
-      "link" : business.url,
       "rating" : business.rating,
       "lat" : business.location.coordinate.latitude,
       "lon" : business.location.coordinate.longitude
@@ -115,7 +108,6 @@ function queryYelpBusinessWrapper(eventParty, restaurantData, index) {
     return Parse.Promise.as();
   }
   console.log("\t Recursion for queryYelpBusinessWrapper")
-  //console.log("\t\tRest Data" + restaurantData);
   console.log("\t\tRest Index: " + index);
   console.log('\t\tBiz id to look up: ' + restaurantData[index].id);
   return Parse.Cloud.httpRequest({
@@ -184,8 +176,6 @@ function queryYelpBusinessInfoOfRestaurants(eventParty, restaurantData, indexInt
 }
 
 function milesToMeters(miles) {
-  //return miles;
-  console.log('\tMETERS!!!: ' + (miles * 1609.34));
   return (miles * 1609.34);
 }
 
@@ -197,15 +187,13 @@ function queryYelpForRestaurants(eventParty) {
                               "&cll=" + eventParty.lat + "," + eventParty.long +// url of whatever server we are running on
                               "&location=" + eventParty.location
   }).then(function(httpResponse) {
-    // console.log(httpResponse.data.businesses);
     return extractRestaurantData(httpResponse.data.businesses);
-    // console.log(restaurantData);
   });
 }
 
 function inviteUsers(users) {
   console.log("Inviting " + users);
-  return Parse.Promise.as(); // TODO: Remove
+  // return Parse.Promise.as(); // TODO: Remove
   var pushQuery = new Parse.Query(Parse.Installation);
   pushQuery.containedIn("user", users);
 
@@ -234,7 +222,7 @@ function notifyEventSuccess(users) {
 // Also increments app badge count on iOS.
 function notifyUsersWithMessage(users, message) {
   console.log("Notifying: " + message + " - " + users);
-  return Parse.Promise.as(); // TODO: remove
+  // return Parse.Promise.as(); // TODO: remove
   var pushQuery = new Parse.Query(Parse.Installation);
   pushQuery.containedIn("user", users);
 
@@ -320,36 +308,6 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
     }
   });
 }
-
-  // TODO LIST:
-  // 1) We need to notify the user that they've been invited // CHECK WITH NICK
-  //      - the user will then RSVP
-  // 2) We need to expand our search to look beyond just finding the first match
-  //      - If all the people who like Chinese food can't go, we need to now
-  //          query for people with Vietnamese food as their preference, etc.
-  // 3) Yelp Related Search:
-  //      - TODO: DISCRETIZE OUR BUDGET LIMITS (i.e. like Yelp: $ -> $$ -> $$$ -> $$$$)
-  //      - We need to find a restaurant within our attendees' given max distance travel radius
-  //      - Attendees' budget limits are respected (i.e. they aren't paying through the nose)
-  //      - If number of potential attendees drops below numGuests, restart the search (i.e. step 2)
-  // 4) If there are multiple people that fit the ticket, randomize the results
-  // infty) FINAL STEP: We need to populate our eventId once everything is found
-
-
-/* Returns a JSON (TODO ?) a restaurant according to:
-* - Shared cuisine interest
-* - Budget (acc'g to the member with the lowest upperbound)
-* - Location (acc'g to circle area that best fits the intersection of all member's radii)
-*/
-// function queryYelpForRestaurant(term) {
-//   return Parse.Cloud.httpRequest({
-//     method: 'GET',
-//     url: getServerURL() + "/yelp?term=" + term, // url of whatever server we are running on
-//   }).then(function(httpResponse) {
-//     return httpResponse.text;
-//   });
-// }
-
 
 /* CLOUD FUNCTION: userRSVP
 -----------------------
