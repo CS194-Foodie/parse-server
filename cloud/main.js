@@ -320,6 +320,8 @@ Parse.Cloud.define('cancelEvent', function(req, res) {
   var sessionToken = req.params.sessionToken;
   var eventId = req.params.eventId;
 
+  console.log("Cancelling event " + eventId);
+
   Parse.User.become(sessionToken).then(function() {
 
       // Get the event to delete
@@ -332,12 +334,15 @@ Parse.Cloud.define('cancelEvent', function(req, res) {
       // Delete the event, and fetch everyone besides owner going
       var goingUsers = event.get("goingUsers");
       return event.destroy().then(function() {
+        console.log("Destroyed event object.");
         return fetchAllAsync(goingUsers);
       });
   }).then(function(users) {
     // Send a push that the event was cancelled
+    console.log("Fetched going users, sending push...");
     return notifyEventCancelled(users);
   }).then(function() {
+    console.log("Push successful!");
     res.success();
   }, function(error) {
     res.error(error);
