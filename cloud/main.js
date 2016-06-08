@@ -313,6 +313,52 @@ function updateEvent(match, eventId, numFriends) { // consume promise chain and 
   });
 }
 
+/* Only callable by the event owner, cancels the event and notifies
+ * everyone else going that it has been cancelled.
+ */
+Parse.Cloud.define('cancelEvent', function(req, res) {
+  var sessionToken = req.params.sessionToken;
+  var eventId = req.params.eventId;
+
+  Parse.User.become(sessionToken).then(function() {
+
+      // Get the event to delete
+      var Event = Parse.Object.extend("Event");
+      var query = new Parse.Query(Event);
+      return query.get(eventId);
+
+  }).then(function(event) {
+
+      // Delete the event, and fetch everyone besides owner going
+      var goingUsers = event.get("goingUsers");
+      return event.destroy().then(function() {
+        return fetchAllAsync(goingUsers);
+      });
+  }).then(function(users) {
+    // Send a push that the event was cancelled
+    return notifyEventCancelled(users);
+  }).then(function() {
+    res.success();
+  }, function(error) {
+    res.error(error);
+  });
+});
+
+
+function fetchAllAsync(objects) {
+  var promise = new Parse.Promise();
+  Parse.Object.fetchAll(objects, {
+    success: function(list) {
+      promise.resolve(list);
+    },
+    error: function(error) {
+      promise.reject(error);
+    }
+  });
+
+  return promise;
+}
+
 /* CLOUD FUNCTION: userRSVP
 -----------------------
 Handles a user's response to whether or not they can go to an event
