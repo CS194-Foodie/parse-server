@@ -224,7 +224,7 @@ function notifyEventSuccess(users) {
 // Sends banner push to given users with given message as banner alert.
 // Also increments app badge count on iOS.
 function notifyUsersWithMessage(users, message) {
-  let usernames = users.map(function(user) { return user.get("name"); });
+  var usernames = users.map(function(user) { return user.get("name"); });
   console.log("Notifying: " + message + " - " + JSON.stringify(usernames));
   // return Parse.Promise.as(); // TODO: remove
   var pushQuery = new Parse.Query(Parse.Installation);
